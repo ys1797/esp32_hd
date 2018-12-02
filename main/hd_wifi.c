@@ -35,7 +35,7 @@ License (MIT license):
 #include "time.h"
 #include <string.h>
 #include <sys/types.h>
-#include "apps/sntp/sntp.h"
+#include "lwip/apps/sntp.h"
 #include <cJSON.h>
 
 #include "captdns.h"
@@ -379,7 +379,7 @@ esp_err_t wifi_setup(void)
 		ESP_LOGI(TAG, "WiFi STA SSID: %s", wifi_config.sta.ssid);
 		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 		ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-		ESP_ERROR_CHECK(esp_wifi_set_auto_connect(true));
+//		ESP_ERROR_CHECK(esp_wifi_set_auto_connect(true));
 		ESP_ERROR_CHECK(esp_wifi_start());
 		ESP_ERROR_CHECK(esp_wifi_connect());
 	}
