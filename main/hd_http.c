@@ -108,7 +108,7 @@ vaiable_list DEFL_PARAMS[] =
 	{"beepChangeState", VARIABLE_CHECKBOX, 0, 1},
 
 	{"powerDistil", VARIABLE_INT, 0, 15000},
-	{"tempEndDestil", VARIABLE_FLOAT, 0, 120},
+	{"tempEndDistil", VARIABLE_FLOAT, 0, 120},
 
 	{NULL}
 };
@@ -536,6 +536,20 @@ int httpSetMainMode(HttpdConnData *connData)
 	return HTTPD_CGI_DONE;
 }
 
+int httpSetStatus(HttpdConnData *connData)
+{
+	if (connData->conn==NULL) return HTTPD_CGI_DONE;
+	if (checkAuth(connData)) return HTTPD_CGI_DONE;
+
+	send_json_headers(connData);
+	if (connData->requestType == HTTPD_METHOD_POST) {
+		char nm[10]="0";
+		httpdFindArg(connData->post->buff, "new", nm, sizeof(nm));
+		setStatus(atoi(nm));
+	}
+	httpdSend(connData, json_ok, strlen(json_ok));
+	return HTTPD_CGI_DONE;
+}
 
 
 int httpStartProcess(HttpdConnData *connData)
@@ -1321,6 +1335,7 @@ HttpdBuiltInUrl builtInUrls[]={
 	{"/saveparam", httpParamSetup, NULL},
 	{"/setpower", httpSetPower, NULL},
 	{"/setmainmode", httpSetMainMode, NULL},
+	{"/set_status", httpSetStatus, NULL},
 	{"/startprocess", httpStartProcess, NULL},
 	{"/endprocess", httpEndProcess, NULL},
 	{"/klp_status", httpKlpStatus, NULL},

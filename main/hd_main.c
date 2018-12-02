@@ -30,7 +30,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <cJSON.h>
-#include "apps/sntp/sntp.h"
+#include "lwip/apps/sntp.h"
 #include "sh1106.h"
 #include "ds.h"
 #include "esp_platform.h"
@@ -461,6 +461,7 @@ const char *getMainStatusStr(void)
 		return "Ожидание команды";
         case MODE_POWEERREG:
 		switch (MainStatus) {
+		case START_WAIT: return "Ожидание запуска процесса";
 		case PROC_START: return "Стабилизация мощности";
 		default: return "Завершение работы";
 		}
@@ -1013,13 +1014,66 @@ void setMainMode(int nm)
 	myBeep(false);
 }
 
+// Ручная установка состояния конечного автомата
+void setStatus(int next)
+{
+
+	if (next && MainStatus>=PROC_END) return;
+	if (!next && MainStatus<= START_WAIT) return;
+
+	switch (MainMode) {
+	case MODE_DISTIL:
+		// Режим дестилляции
+		if (next) {
+			if (MainStatus == START_WAIT) MainStatus = PROC_START;
+			if (MainStatus == PROC_START) MainStatus = PROC_RAZGON;
+			if (MainStatus == PROC_RAZGON) MainStatus = PROC_DISTILL;
+			if (MainStatus == PROC_DISTILL) MainStatus = PROC_WAITEND;
+			if (MainStatus == PROC_WAITEND) MainStatus = PROC_END;
+		} else {
+			if (MainStatus == PROC_START) MainStatus = START_WAIT;
+			if (MainStatus == PROC_RAZGON) MainStatus = PROC_START;
+			if (MainStatus == PROC_DISTILL) MainStatus = PROC_RAZGON;
+			if (MainStatus == PROC_WAITEND) MainStatus = PROC_DISTILL;
+			if (MainStatus == PROC_END) MainStatus = PROC_WAITEND;
+		}
+
+		break;
+	case MODE_RECTIFICATION:
+		// Режим ректификации
+		if (next) {
+			if (MainStatus == START_WAIT) MainStatus = PROC_START;
+			if (MainStatus == PROC_START) MainStatus = PROC_RAZGON;
+			if (MainStatus == PROC_RAZGON) MainStatus = PROC_STAB;
+			if (MainStatus == PROC_STAB) MainStatus = PROC_GLV;
+			if (MainStatus == PROC_GLV) MainStatus = PROC_T_WAIT;
+			if (MainStatus == PROC_T_WAIT) MainStatus = PROC_SR;
+			if (MainStatus == PROC_SR) MainStatus = PROC_HV;
+			if (MainStatus == PROC_HV) MainStatus = PROC_WAITEND;
+			if (MainStatus == PROC_WAITEND) MainStatus = PROC_END;
+		} else {
+			if (MainStatus == PROC_START) MainStatus = START_WAIT;
+			if (MainStatus == PROC_RAZGON) MainStatus = PROC_START;
+			if (MainStatus == PROC_STAB) MainStatus = PROC_RAZGON;
+			if (MainStatus == PROC_GLV) MainStatus = PROC_STAB;
+			if (MainStatus == PROC_T_WAIT) MainStatus = PROC_GLV;
+			if (MainStatus == PROC_SR) MainStatus = PROC_GLV;
+			if (MainStatus == PROC_HV) MainStatus = PROC_SR;
+			if (MainStatus == PROC_WAITEND) MainStatus = PROC_HV;
+			if (MainStatus == PROC_END) MainStatus = PROC_WAITEND;
+		}
+		break;
+	default:
+		break;
+	}
+	myBeep(false);
+}
+
 /*
  * Функция возвращает значение ШИМ для отборв по "шпоре" (температуре в кубе)
  */
 int16_t GetSrPWM(void)
 {
-
-
 	int16_t found = ProcChimSR;
 	double t = getCubeTemp();
 
@@ -1051,10 +1105,10 @@ void Rectification(void)
 		// Начало процесса
 		MainStatus = PROC_RAZGON;
 		if (beepChangeState) myBeep(true);
+		setPower(maxPower);	//  максимальная мощность для разгона
 
 	case PROC_RAZGON:
 		// Разгон до рабочей температуры
-		setPower(maxPower);	//  максимальная мощность для разгона
 		if (tempEndRectRazgon > 0) t = getCubeTemp();
 		else t = getTube20Temp();
 		if (-1 == t) break;
@@ -1072,8 +1126,6 @@ void Rectification(void)
 	case PROC_STAB:
 		// Стабилизация температуры
 		openKlp(klp_water);	// Открытие клапана воды (на всякий случай)
-
-		setPower(powerRect);	// мощность ректификации
 		t = getTube20Temp();
 		if (-1 == t) break;
 		if (t < 70) {
@@ -1115,11 +1167,11 @@ void Rectification(void)
 			if (beepChangeState) myBeep(true);
 			secTempPrev = uptime_counter;
 		}
+		// Устанавливаем мощность ректификации
+		setPower(powerRect);
 
 	case PROC_GLV:
 		// Отбор головных фракций
-		setPower(powerRect);	// мощность ректификации
-
 		// Устанавливаем медленный ШИМ клапан отбора хвостов и голов в соответвии с установками
 		topen = timeChimRectOtbGlv/100*procChimOtbGlv;
 		startGlvKlp(topen, timeChimRectOtbGlv-topen);
@@ -1168,7 +1220,7 @@ void Rectification(void)
 	case PROC_SR:
 		// Отбор СР
 		closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
-		setPower(powerRect);	// мощность ректификации
+//		setPower(powerRect);	// мощность ректификации
 
 		t = getCubeTemp();
 
@@ -1231,7 +1283,7 @@ void Rectification(void)
 
 	case PROC_HV:
 		// Отбор хвостовых фракций
-		setPower(powerRect);	// мощность ректификации
+//		setPower(powerRect);	// мощность ректификации
 
 		topen = timeChimRectOtbGlv*90/100;
 		startGlvKlp(topen, timeChimRectOtbGlv-topen);
@@ -1281,10 +1333,10 @@ void Distillation(void)
 		// Начало процесса
 		MainStatus = PROC_RAZGON;
 		if (beepChangeState) myBeep(true);
+		setPower(maxPower);	//  максимальная мощность для разгона
 
 	case PROC_RAZGON:
 		// Разгон до рабочей температуры
-		setPower(maxPower);	//  максимальная мощность для разгона
 		t = getCubeTemp();
 		if (-1 == t) break;
 		if (t < tempEndRectRazgon) break;
@@ -1549,7 +1601,7 @@ void app_main(void)
 
 	ledc_timer_config_t ledc_timer = {
 		.bit_num = LEDC_TIMER_10_BIT,
-		.freq_hz = HZ*2,
+		.freq_hz = LED_HZ*2,
 		.speed_mode = LEDC_HIGH_SPEED_MODE,
 		.timer_num = LEDC_TIMER_0
 	};

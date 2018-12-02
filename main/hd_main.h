@@ -89,7 +89,7 @@ struct PZEMCommand {
 
 #define TICK_RATE_HZ 100
 #define TICK_PERIOD_MS (1000 / TICK_RATE_HZ)
-#define HZ 50
+#define LED_HZ 50
 // TRIAC is kept high for TRIAC_GATE_IMPULSE_CYCLES PWM counts before setting low.
 #define TRIAC_GATE_IMPULSE_CYCLES 10
 // TRIAC is always set low at least TRIAC_GATE_QUIESCE_CYCLES PWM counts 
@@ -151,6 +151,7 @@ void sendSMS(char *text);	// Отправка SMS
 void Rectification(void);	// Обработка состояний в режиме ректификации
 void setPower(int16_t pw);	// Установка рабочей мощности
 void setMainMode(int new_mode);	// Установка нового режима работы
+void setStatus(int next);	// Ручная установка состояния конечного автомата
 void closeAllKlp(void);		// Закрытие всех клапанов.
 void openKlp(int i);		// Открытие клапана воды
 void closeKlp(int i);		// Закрытие определенного клапана
