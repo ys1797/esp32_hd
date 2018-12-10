@@ -1559,6 +1559,10 @@ void app_main(void)
 		return;
 	}
 
+	TIMERG0.wdt_wprotect=TIMG_WDT_WKEY_VALUE;
+	TIMERG0.wdt_feed=1;
+	TIMERG0.wdt_wprotect=0;
+
 	xTaskCreate(&console_task, "console_task", 8192, NULL, 1, NULL);
 
 	/* Получаем конфигурацию сетевого доступа */
