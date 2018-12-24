@@ -26,7 +26,7 @@ extern char I2C_detect[128];		/* Список обнаруженных устройств на шине i2c */
 typedef enum {
         MODE_IDLE=0,		// Режим мониторинга
         MODE_POWEERREG=1,	// Режим регулятора мощности
-	MODE_DISTIL=2,		// Режим дестилляции
+	MODE_DISTIL=2,		// Режим дистилляции
 	MODE_RECTIFICATION=3,	// Режим ректификации
 	MODE_TESTKLP=10,	// Режим тестирования клапанов
 } main_mode;
@@ -47,7 +47,7 @@ typedef enum {
 #define PROC_GLV	4	// Отбор головных фракций
 #define PROC_T_WAIT	5       // Ожидание стабилизации температуры
 #define PROC_SR		6	// Отбор СР
-#define PROC_DISTILL	PROC_SR	// Дестилляция
+#define PROC_DISTILL	PROC_SR	// Дистилляция
 #define PROC_HV		7	// Отбор хвостовых фракций
 #define PROC_WAITEND	8	// Отключение нагрева, подача воды для охлаждения
 #define PROC_END	100	// Окончание работы

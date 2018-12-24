@@ -150,8 +150,8 @@ int16_t timeAutoIncCHIM=600;	// Макс время стабилизации д�
 int16_t alarmMPX5010=0;		// Давление при котором надо выдавать сингал тревоги
 bool beepChangeState = true;	// Звуковой сигнал при смене состояния процесса 
 
-int16_t powerDistil = 1000;	// Мощность дестиляции
-double tempEndDistil=99.5;	// Температура в кубе, при которой прекращается дестиляции
+int16_t powerDistil = 1000;	// Мощность дистилляции
+double tempEndDistil=99.5;	// Температура в кубе, при которой прекращается дистилляции
 
 // Динамические параметры
 double tempTube20Prev;		// Запомненое значение температуры в колонне
@@ -468,7 +468,7 @@ const char *getMainModeStr(void)
 	switch (MainMode) {
         case MODE_IDLE:	return "Монитор";
         case MODE_POWEERREG: return "Регулятор мощности";
-	case MODE_DISTIL: return "Дестилляция";
+	case MODE_DISTIL: return "Дистилляция";
 	case MODE_RECTIFICATION: return "Ректификация";
 	case MODE_TESTKLP: return "Тестирование клапанов";
 	default: return "Неизвестно";
@@ -493,7 +493,7 @@ const char *getMainStatusStr(void)
 		case START_WAIT: return "Ожидание запуска процесса";
 		case PROC_START: return "Начало процесса";
 		case PROC_RAZGON: return "Разгон до рабочей температуры";
-		case PROC_DISTILL: return "Дестилляция";
+		case PROC_DISTILL: return "Дистилляция";
 		case PROC_WAITEND: return "Отключение нагрева, подача воды для охлаждения";
 		default: return "Завершение работы";
 		}
@@ -1018,7 +1018,7 @@ void setMainMode(int nm)
 		setPower(ustPowerReg);
 		break;
 	case MODE_DISTIL:
-		// Режим дестилляции
+		// Режим дистилляции
 		ESP_LOGI(TAG, "Main mode: Distillation.");
 		MainStatus = START_WAIT;
 		break;
@@ -1045,7 +1045,7 @@ void setStatus(int next)
 
 	switch (MainMode) {
 	case MODE_DISTIL:
-		// Режим дестилляции
+		// Режим дистилляции
 		if (next) {
 			if (MainStatus == START_WAIT) MainStatus = PROC_START;
 			if (MainStatus == PROC_START) MainStatus = PROC_RAZGON;
@@ -1341,7 +1341,7 @@ void Rectification(void)
 	}
 }
 
-// Обработка состояний в режиме дестилляции
+// Обработка состояний в режиме дистилляции
 void Distillation(void)
 {
 	double t;
@@ -1368,10 +1368,10 @@ void Distillation(void)
 
 		MainStatus = PROC_DISTILL;
 		if (beepChangeState) myBeep(true);
-		setPower(powerDistil);	// Мощность дестилляции
+		setPower(powerDistil);	// Мощность дистилляции
 
 	case PROC_DISTILL:
-		// Процесс дестилляции
+		// Процесс дистилляции
 		t = getCubeTemp();
 		if (t < tempEndDistil) {
 			break;
@@ -1669,6 +1669,7 @@ void app_main(void)
 	ESP_ERROR_CHECK(gpio_intr_enable(GPIO_DETECT_ZERO));
 	ESP_LOGI(TAG, "Enabled zero crossing interrupt.\n");
 	if (beepChangeState) myBeep(false);
+
 
 
 	while (true) {
