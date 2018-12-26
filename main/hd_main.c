@@ -92,6 +92,7 @@ char *smscUser;		// Имя пользователя для smsc
 char *smscHash;		// Хэш пароля smsc
 char *smscPhones;	// Номер телефона для Smsc
 int useSmsc;		// Использовать smsc
+int wsPeriod=5;		// Период обновления данных через websocket
 
 int clockCenterX = screenW/2;
 int clockCenterY = ((screenH-16)/2)+16;   // top yellow part is 16 px height
@@ -1680,7 +1681,7 @@ void app_main(void)
 		if (r) free(r);
 		if (MODE_RECTIFICATION == MainMode) Rectification();
 		else if (MODE_DISTIL == MainMode) Distillation();
-		vTaskDelay(5000/portTICK_PERIOD_MS);
+		vTaskDelay(wsPeriod*1000/portTICK_PERIOD_MS);
 	}
 }
 

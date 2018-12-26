@@ -115,7 +115,7 @@ int get_network_config(void)
 
 // Сохранение конфигурации сетевого доступа
 int set_network_config(char *host, char *user, char *pass, int secure,
-	char *su, char *sh, char *sp, int usesmsc)
+	char *su, char *sh, char *sp, int usesmsc, int wsperiod)
 {
 	cJSON *ja;
 	if (!host || !user || !pass) return -1;
@@ -129,6 +129,7 @@ int set_network_config(char *host, char *user, char *pass, int secure,
 	if (sh) cJSON_AddItemToObject(ja, "smscHash", cJSON_CreateString(sh));
 	if (sp) cJSON_AddItemToObject(ja, "smscPhones", cJSON_CreateString(sp));
 	cJSON_AddItemToObject(ja, "useSmsc", cJSON_CreateNumber(usesmsc));
+	cJSON_AddItemToObject(ja, "wsPeriod", cJSON_CreateNumber(wsperiod));
 
 	FILE *f = fopen(NET_CONFIGURATION, "w");
 	if (f) {
@@ -153,6 +154,7 @@ int set_network_config(char *host, char *user, char *pass, int secure,
 	if (sh) smscHash = strdup(sh);
 	if (sp) smscPhones = strdup(sp);
 	useSmsc = usesmsc;
+	wsPeriod = wsperiod;
 	return 0;
 }
 

@@ -426,18 +426,23 @@ int httpNetSetup(HttpdConnData *connData)
 		cJSON_AddItemToObject(ja, "smscHash", cJSON_CreateString(smscHash?smscHash:""));
 		cJSON_AddItemToObject(ja, "smscPhones", cJSON_CreateString(smscPhones?smscPhones:""));
 		cJSON_AddItemToObject(ja, "useSmsc", cJSON_CreateNumber(useSmsc));
+		cJSON_AddItemToObject(ja, "wsPeriod", cJSON_CreateNumber(wsPeriod));
+
 		char *r=cJSON_Print(ja);
 		httpdSend(connData, r, strlen(r));
 		if (r) free(r);
 		cJSON_Delete(ja);
         } else if (connData->requestType == HTTPD_METHOD_POST) {
 		char user[33], pass[33], host[82], su[33]="", sh[82]="", sp[82]="";
-		int secure=0, usesmsc=0;
+		int secure=0, usesmsc=0, wsperiod=5;
 		if (httpdFindArg(connData->post->buff, "secure", user, sizeof(user)) >0) {
 			secure = atoi(user);
 		}		
 		if (httpdFindArg(connData->post->buff, "useSmsc", user, sizeof(user)) >0) {
 			usesmsc = atoi(user);
+		}
+		if (httpdFindArg(connData->post->buff, "wsPeriod", user, sizeof(user)) >0) {
+			wsperiod = atoi(user);
 		}		
 
 		httpdFindArg(connData->post->buff, "host", host, sizeof(host));
@@ -447,7 +452,7 @@ int httpNetSetup(HttpdConnData *connData)
 		httpdFindArg(connData->post->buff, "smscHash", sh, sizeof(sh));
 		httpdFindArg(connData->post->buff, "smscPhones", sp, sizeof(sp));
 
-		if (!set_network_config(host,user,pass,secure,su,sh,sp,usesmsc)) {
+		if (!set_network_config(host,user,pass,secure,su,sh,sp,usesmsc,wsperiod)) {
 			// recalculate h1
 			char b[128];
 			snprintf(b, sizeof(b), "%s:%s:%s", httpUser, CONFIG_REALM, httpPassword);

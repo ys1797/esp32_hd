@@ -61,7 +61,7 @@ extern char *smscUser;		// Имя пользователя для smsc
 extern char *smscHash;		// Хэш пароля smsc
 extern char *smscPhones;	// Номер телефона для Smsc
 extern int useSmsc;		// Использовать smsc
-
+extern int wsPeriod;		// Период обновления данных через websocket
 
 extern main_mode MainMode;	// Текущий режим работы
 extern alarm_mode AlarmMode;	// Состояние аварии
