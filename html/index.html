@@ -1,0 +1,1132 @@
+<!doctype html>
+<html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="robots" content="noindex,nofollow" />
+<title>HD ESP32</title>
+<script src="/jq.js" type="text/javascript"></script>
+<style>
+.center { text-align: center; }
+.fl_l { float: left; }
+.fl_r { float: right; }
+.ta_l { text-align: left; }
+.ta_r { text-align: right; }
+.ta_c { text-align: center; }
+.va_t { vertical-align: top; }
+.va_m { vertical-align: middle; }
+.va_b { vertical-align: bottom; }
+.red { color: red; }
+.bold { font-weight: bold; }
+body, html {
+ 	margin: 0;padding: 0px;background-color: #FFFFFF;background: #FFFFFF;
+	color: #000000;font-family: Arial;line-height: 1.2em; font-size: 14px;
+}
+select {font-size: 10pt;background-color: #dfdfdf; padding: 3px;}
+
+img {border: 0; vertical-align: middle;}
+h1 {
+	color: #000000; font-weight: bold; font-size: 16px;
+        margin: 0; padding: 2px 0 3px 10px;
+        background-position: 0 -2843px; background-repeat: repeat-x;
+        border-top: 1px solid #f0f0f0; border-left: 1px solid #f0f0f0;
+        border-right: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0;
+        vertical-align: middle; text-align: center;
+}
+h2, h3, h4 { text-align: center; font-weight: bold; color: #000000; background-color: transparent; }
+.header { margin: 0px 0px 2px 0px; overflow: hidden; }
+table.header {text-align: center; vertical-align: middle; 
+	background-color: #dddddd; color: #990000; width: 100%;
+	height: 55px; padding-left: 1px; padding-right: 1px;
+	border-spacing: 3px; border-collapse: separate;
+	margin-left:auto; margin-right:auto; margin-bottom: 25px;
+}
+table.header tr, table.header td, table.header th
+{
+	padding-left: 2px; padding-right: 2px;
+        text-align: center; vertical-align: middle;
+        background-color: #dddddd; color: #990000;
+}
+div.wrapper { text-align: left; float: left; width: 100%;}
+div.content { margin-left: 5px; width: 1010px;}
+div.footer {
+	clear: left; padding-left: 15px; background: transparent;
+	color: #990000; background-color: #dddddd; text-align: left;
+	vertical-align: middle;
+}
+div.footer a { color: #990000; text-decoration: underline;}
+li { padding-top: 3px;padding-bottom: 3px;}
+ul li { list-style-type: square;}
+input {padding: 5px;}
+input.buttons {
+        border: #3C3C3C 1px solid; font-family: Tahoma,verdana, Helvetica;
+	font-size: 10pt; background-color: #D4D4D4; color: #404040;
+}
+.menu {
+	margin-left: 10px;
+	margin-top: 5px;
+	padding: 5px;
+
+}
+.param {
+        text-align: center;
+        background-color: #404040;
+        color: #000;
+        padding-left: 1px;
+        padding-right: 1px;
+        border-spacing: 1px;
+        border-collapse: separate;
+        padding: 0;
+        margin-left:auto;
+        margin-right:auto;
+}
+.param tr {padding: 1px; background-color: #FFFFFF; color: #000;}
+
+.stick {margin:15px; padding:15px; width:200px; }
+.classic {border:1px solid #A7CD10; background-color:#E1FAB8; border-radius:15px; -moz-border-radius:15px; -webkit-border-radius:15px;}
+.classic.error {border:1px solid #E2365C;background-color:#F7C8D2;}
+.last {background-color:#CBECFA; border:1px solid #15A6E3;}
+.exit{background:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACpElEQVR4nHWTTU8TQRzGn5n/rNtXuxVoWbSmJcYXwGQuFBNP+w0w8AEkPXHDT4LfoF7lAL6QXiDZIF4IlyXeCVEogqFu6Yvbmtnx4LIRo//jJL/fMzPPDEM0Xq22OvT9cvPjx6X5szMf/5gN27bsubm6Gg6PnjYaLwCAA8Cn5eV6YXZ2hTM2nxoddd+Mj1v/gV3r3r153WqtbD16VAcA5tVqq4XZ2ZXm1haGrRa0Uuien3v9dtt5dnrqA8D6xIRlV6tufnJSXuzuQisFAOj3ei/F0PfLze3tGIZSSOfzEmHorgMOGINdrbr5SkVe7OwASoFFuwqVKrO3xaKVHB110yMjEkpBhyGgFBCG6LbbXm5qCrcqFXnx4cPvda3BAFz2+16333cYALwZH7eSluWm83l5BbMwBMIQt548gb+3FyczreH3+143CJyFkxOf/XlJqWzWTd+8Ka9gpjX0YAAdBGBRclcI7zIInMWTEx9AfBwAwLptW6lMxs0kk1J9/w7VboMD4JyDiNAxDK8rhLN4fBzXLK51xRiylQpSponW4SEoAokIxDk4EfRf9fI/0wszM27asuTFzk6cSkQQRBBCoEgkRzh310ol65pgI4IzuZz81miAhyE4Y7FECAHDMGAIgdumKYuGEUvYhm1bY1HyeaMBrnWc2DNNj4hQIJJXAkMIEBE+B4F3HASOGJuerqdyOfl1cxNcazAiMMbQNQyvJ4SjARBj7p1IciMSPUgkJO906uJnp3N0urt7De6ZpvfDMOLbXiuVHKGUO0kkb0QSzjmSQXDEAOBdNls3BoPnRIRhOu0NTNNZiHq+mrVSybqTSrkP83mZTCTwpdd7dX9/fyl+B+9zuVUQlYeJxNJCs/nP7/z67l2rnMnUU4Zx9Pjg4AUA/ALA8B6CbeY2WQAAAABJRU5ErkJggg==) no-repeat; width:16px; height:16px; float:right; margin:-5px -5px 0 0; cursor:pointer}
+
+</style>
+<script>
+(function() {
+
+  if (window.WebSocket) {
+    return;
+  } else if (window.MozWebSocket) {
+    // Firefox.
+    window.WebSocket = MozWebSocket;
+    return;
+  }
+})();
+geturlpath = function() {
+  var pattern = "^(([^:/\\?#]+):)?(//(([^:/\\?#]*)(?::([^/\\?#]*))?))?([^\\?#]*)(\\?([^#]*))?(#(.*))?$";
+  var rx = new RegExp(pattern);
+  var parts = rx.exec(document.location.href);
+//  var pathname = parts[7] || "/";
+  return parts;
+}
+getUrlVar = function(key){
+  var result = new RegExp(key + "=([^&]*)", "i").exec(window.location.search);
+  return result && unescape(result[1]) || "";
+}
+
+var WS_SOCK;
+var WS_address;
+var WS_protocol;
+function websock_init(address, protocol) {
+  var error_try = 0;
+  var ws_timeout;
+
+  ws_status = function(str) {
+    $(".ws_status").html(str);
+  }
+  function ws_log(str) {
+   $(".log").append(str+'<br />');
+   $(".log").scrollTop(9999);
+  }
+  function ws_reconnect() {
+    ws_status('Init');
+    clearTimeout(ws_timeout);
+    ws_timeout = null;
+   WS_SOCK = new WebSocket(WS_address, WS_protocol);
+  }
+
+  WS_address = 'ws://'+address+'/ws';
+  WS_protocol = protocol;
+  ws_status('Init');
+  WS_SOCK = new WebSocket(WS_address, WS_protocol);
+
+  WS_SOCK.onopen = function() {
+    ws_status('<span style="color: green;">WS Connected</span>');
+  };
+  WS_SOCK.onmessage = function(e) {
+    var d = jQuery.parseJSON(e.data);
+    if ('undefined' == typeof d.cmd) return;
+    switch(d.cmd) {
+    case 'logline':
+	ws_log(d.ch+': '+d.level+' '+d.date+' '+d.message);
+	break;
+    case 'info':
+	$(".time").html(d.time);
+	$(".uptime").html(d.uptime);
+	$(".MainStatusStr").html(d.MainStatusStr);
+	$(".SetPower").html(d.SetPower+' Вт.');
+        $(".CurPower").html(d.CurPower+' Вт.');
+        $(".CurVolts").html(d.CurVolts+' В.');
+        $(".CurFreq").html(d.CurFreq+' Гц.');
+	$(".AlarmMode").html(d.AlarmMode);
+	$(".WaterOn").html(d.WaterOn);
+	if (eval(d.TempWaterIn)<0) $(".TempWaterIn").html("Нет данных");
+	else $(".TempWaterIn").html(d.TempWaterIn);
+	if (eval(d.TempWaterOut)<0) $(".TempWaterOut").html("Нет данных");
+	else $(".TempWaterOut").html(d.TempWaterOut);
+	if (eval(d.WaterFlow)<0) $(".WaterFlow").html("Нет данных");
+	else $(".WaterFlow").html(d.WaterFlow);
+	$(".heap").html('heap: '+d.heap);
+	for (var i in d.sensors) {
+                var s = d.sensors[i];
+		$(".sens_"+s.id).html(s.temp+' C');
+        }
+	for (var i in d.klapans) {
+		var k = d.klapans[i];
+		var html;
+		if (eval(k.is_pwm)) {
+			if (eval(k.is_open)) html = "Открыт. ";
+			else html = "Закрыт. ";
+			html += "Шим режим "+k.pwm_time+"сек "+k.pwm_percent+" %";
+		} else {
+			if (eval(k.is_open)) html = "Открыт";
+			else html = "Закрыт";
+		}
+		$(".klp_status_"+k.id).html(html);
+	}
+	if (0 == eval(d.MainStatus)) {
+		$('.i_start').show();
+		$('.i_end').hide();
+	} else if (100 == eval(d.MainStatus)) {
+		$('.i_start').show();
+		$('.i_end').hide();
+	} else {
+		$('.i_start').show();
+		$('.i_end').show();
+	}
+
+	break;
+   case 'mode':
+	$(".MainMode").val(d.MainMode);
+	break;
+    }
+  };
+  WS_SOCK.onclose = function() {
+    ws_status('<span class="red">WS disconnected</span>');
+    setTimeout(ws_reconnect, 1000);
+  };
+  WS_SOCK.onerror = function() {
+    ws_status('<b class="red">WS error</b>');
+    setTimeout(ws_reconnect, 1000);
+  };
+}
+
+// Copyright (C) 2010 recens Stikr, jQuery plugin
+(function($) {
+ $.stickr = function(o) {
+ var o = $.extend({
+  time:5000, speed:'slow', note:null, className:null,
+  sticked:false, position:{top:0,right:0}
+ }, o);
+
+ var stickers = $('#jquery-stickers');
+ if (!stickers.length) {
+  $('body').prepend('<div id="jquery-stickers"></div>');
+  var stickers = $('#jquery-stickers');
+ }
+ stickers.css('position','fixed').css({right:'auto',left:'auto',top:'auto',bottom:'auto'}).css(o.position);
+ var stick = $('<div class="stick"></div>');
+ stickers.append(stick);
+ if (o.className) stick.addClass(o.className);
+ stick.html(o.note);
+ if (o.sticked) {
+  var exit = $('<div class="exit"></div>');
+  stick.prepend(exit);
+  exit.click(function(){
+    stick.fadeOut(o.speed,function(){
+      $(this).remove();
+    })
+  });
+ } else {
+  setTimeout(function(){
+   stick.fadeOut(o.speed,function(){
+    $(this).remove();
+   });
+  }, o.time);
+ }
+ };
+})(jQuery);
+
+showStick = function(level,text) {
+ if (level<0) $.stickr({note:'Ошибка.<br />'+text,className:'classic error',sticked:true});
+ else $.stickr({note:text,className:'last',time:1000,speed:3000});
+
+}
+
+
+
+
+</script>
+</head>
+<body>
+<div style="background-color: #FFFFFF; background: #FFFFFF; margin: 5px auto;">
+<a id="top" accesskey="t"></a>
+<table class="header" style="width: 100%;"><tbody>
+
+<tr><td class="ta_l">
+<div class="ta_l"><span class="ws_status"></span> <span class="AlarmMode bold"></span></div>
+<div class="ta_l"><span class="time"></span> up: <span class="uptime">0:0:0</span></div>
+<div class="ta_l MainModeStr bold"></div>
+<div class="ta_l CurPower bold"></div>
+</td></tr>
+<tr><td style="text-align: left; vertical-align: bottom; padding-top: 10px;">
+<input class="menu" type="button" onClick="disp_main();" value="Главная"/>
+<input class="menu" type="button" onClick="disp_network();" value="Настройки"/>
+<input class="menu" type="button" onClick="disp_setting();" value="Параметры"/>
+<input class="menu" type="button" onClick="disp_sensor();" value="Датчики"/>
+<input class="menu" type="button" onClick="disp_wifi();" value="Wifi"/>
+<input class="menu" type="button" onClick="disp_fs();" value="FS" />
+<input class="menu" type="button" onClick="window.location.href='/update';" value="Обновления"/>
+</td></tr></tbody></table>
+
+<div class="wrapper"><div class="content" >
+
+<div class="pages" id="main_div" style="display: none;">
+<div style="text-align: left; width: 100%; overflow: auto; margin-bottom: 10px;">
+
+<table>
+<tbody>
+<tr><td>Режим: </td><td><select class="MainMode" name="MainMode" id="new_mode">
+<option value="0">Мониторинг</option>
+<option value="1">Регулятор мощности</option>
+<option value="2">Дистилляция</option>
+<option value="3">Ректификация</option>
+<option value="10">Тестирование клапанов</option>
+</select>
+<input type="button" id="sw_mode" onclick="switch_mode();" style="display: none;" value="Установить"/>
+</td></tr>
+<tr><td>Состояние: </td><td><span class="MainStatusStr bold"></span>
+<input type="button" id="prev_status" onclick="prev_status();" value="Предыдущее"/>
+<input type="button" id="next_status" onclick="next_status();" value="Следующее"/>
+
+</td></tr>
+<tr><td>Авария: </td><td class="AlarmMode bold"></td></tr>
+<tr><td>Текущая мощность: </td><td class="CurPower bold"></td></tr>
+<tr><td>Заданая мощность: </td><td><span class="SetPower bold"></span>
+<input style="margin-left: 10px;" type="text" size="6" maxlength="8" name="new_power" id="new_power" />
+<input class="menu" type="button" value="установить" onclick="setPower(0);" />
+</td></tr>
+<tr><td colspan="2" class="ta_l">
+<input class="menu" type="button" value=" +100 " onclick="setPower(100);" />
+<input class="menu" type="button" value=" +10 " onclick="setPower(10);" />
+<input class="menu" type="button" value=" -100 " onclick="setPower(-100);" />
+<input class="menu" type="button" value=" -10 " onclick="setPower(-10);" />
+</td></tr>
+<tr><td>Напряжение: </td><td class="CurVolts bold"></td></tr>
+<tr><td>Частота сети: </td><td class="CurFreq bold"></td></tr>
+</tbody>
+<tbody class="temp_sensors"></tbody>
+
+<tbody>
+<tr><td>Охлаждение: </td><td class="WaterOn bold"></td></tr>
+<tr><td>T охлаждения вход: </td><td class="TempWaterIn bold"></td></tr>
+<tr><td>T охлаждения выход: </td><td class="TempWaterOut bold"></td></tr>
+<tr><td>Поток воды: </td><td class="WaterFlow bold"></td></tr>
+<tr><td>Клапан воды: </td><td class="klp_status_0 bold"></td></tr>
+<tr><td>Клапан голов/хвостов: </td><td class="klp_status_1 bold"></td></tr>
+<tr><td>Клапан продукта: </td><td class="klp_status_2 bold"></td></tr>
+<tr><td>Клапан 4: </td><td class="klp_status_3 bold"></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="modes rectification" style="text-align: left; width: 100%; overflow: auto; margin-bottom: 10px; display: none;">
+<table><tbody>
+<tr><td>Температура стабилизации: </td><td class="bold"></td></tr>
+<tr><td>Шим отбора: </td><td class="bold"></td></tr>
+</tbody></table>
+<input type="button" class="i_start" value="Запустить" style="display: none; background: #4040ff; display: none;" onclick="StartProcess();" />
+<input type="button" class="i_end" value="Закончить" style="background: #ff4040; display: none;" onclick="EndProcess();" />
+</div>
+
+<div class="modes distill" style="text-align: left; width: 100%; overflow: auto; margin-bottom: 10px; display: none;">
+<input type="button" class="i_start" value="Запустить" style="background: #4040ff;" onclick="StartProcess();" />
+<input type="button" class="i_end" value="Закончить" style="background: #ff4040;" onclick="EndProcess();" />
+</div>
+
+<div class="modes testklp" style="text-align: left; width: 100%; overflow: auto; margin-bottom: 10px; display: none;">
+<table class="param" style="margin_left: 0;"><thead>
+<tr><th>Клапан</th><th>Назначение</th><th>Состояние</th><th>Период шим</th><th>процент вкл.</th><th colspan="2"></th></tr>
+</thead><tbody>
+<tr><td>#1 </td><td class="ta_l bold">Клапан воды</td><td class="klp_status_0"></td>
+<td class="ta_l"><input type="text" id="klp_shim_0" maxlength="4" size="4" value="10"/> сек.</td>
+<td class="ta_l"><input type="text" id="klp_on_0" maxlength="4" size="4" value="50"/> %</td>
+<td><input type="button" onclick="klp_on(0);" style="color: green;" value="Включить" />
+<input type="button" onclick="klp_off(0);" style="color:red;" value="Выключить" /></td>
+<td><input type="button" onclick="klp_shim_on(0);" value="Активировать Шим" /></td></tr>
+<tr><td>#2 </td><td class="ta_l bold">Клапан голов/хвостов</td><td class="klp_status_1"></td>
+<td class="ta_l"><input type="text" id="klp_shim_1" maxlength="4" size="4" value="10"/> сек.</td>
+<td class="ta_l"><input type="text" id="klp_on_1" maxlength="4" size="4" value="50"/> %</td>
+<td><input type="button" onclick="klp_on(1);" style="color: green;" value="Включить" />
+<input type="button" onclick="klp_off(1);" style="color:red;" value="Выключить" /></td>
+<td><input type="button" onclick="klp_shim_on(1);" value="Активировать Шим" /></td></tr>
+<tr><td>#3 </td><td class="ta_l bold">Клапан продукта</td><td class="klp_status_2"></td>
+<td class="ta_l"><input type="text" id="klp_shim_2" maxlength="4" size="4" value="10"/> сек.</td>
+<td class="ta_l"><input type="text" id="klp_on_2" maxlength="4" size="4" value="50"/> %</td>
+<td><input type="button" onclick="klp_on(2);" style="color: green;" value="Включить" />
+<input type="button" onclick="klp_off(2);" style="color:red;" value="Выключить" /></td>
+<td><input type="button" onclick="klp_shim_on(2);" value="Активировать Шим" /></td></tr>
+<tr><td>#4 </td><td class="ta_l bold">Дополнительный</td><td class="klp_status_3"></td>
+<td class="ta_l"><input type="text" id="klp_shim_3" maxlength="4" size="4" value="10"/> сек.</td>
+<td class="ta_l"><input type="text" id="klp_on_3" maxlength="4" size="4" value="50"/> %</td>
+<td><input type="button" onclick="klp_on(3);" style="color: green;" value="Включить" />
+<input type="button" onclick="klp_off(3);" style="color:red;"value="Выключить" /></td>
+<td><input type="button" onclick="klp_shim_on(3);" value="Активировать Шим" /></td></tr>
+</tbody></table>
+</div>
+
+
+</div>
+
+
+<div class="pages" id="net_setup" style="display: none;">
+<h2>Настройки сети</h2>
+<table class="param"><tbody>
+<tr><td class="ta_r">Имя хоста:</td>
+<td class="ta_l"> <input id="host" type="text" size="20" maxlength="20"></td></tr>
+<tr><td class="ta_r">Всегда требовать пароль:</td>
+<td class="ta_l"> <input type="checkbox" id="secure" value="1"></td></tr>
+<tr><td class="ta_r">Новое имя пользователя:</td>
+<td class="ta_l"><input id="newusername" type="text" size="20" maxlength="20"></td></tr>
+<tr><td class="ta_r">Новый пароль:</td>
+<td class="ta_l"><input id="newpasswd" type="password" size="20" maxlength="16"></td></tr>
+<tr><td class="ta_r">Повтор нового пароля:</td>
+<td class="ta_l"><input id="newpasswd2" type="password" size="20" maxlength="16"></td></tr>
+<tr><td class="ta_c" style="display: none; color: red;" colspan="2" id="passmatch">Пароли не совпадают!!</td></tr>
+<tr><td class="ta_r">Использовать сервис smsc.ru:</td>
+<td class="ta_l"> <input type="checkbox" id="useSmsc" value="1"></td></tr>
+<tr><td class="ta_r">Имя пользователя smsc:</td>
+<td class="ta_l"> <input id="smscUser" type="text" size="20" maxlength="20"></td></tr>
+<tr><td class="ta_r">Хэш пароля для smsc:</td>
+<td class="ta_l"> <input id="smscHash" type="text" size="80" maxlength="80"></td></tr>
+<tr><td class="ta_r">Телефоны для отправки sms:</td>
+<td class="ta_l"> <input id="smscPhones" type="text" size="80" maxlength="80"></td></tr>
+<tr><td class="ta_r" style="border-top: 2px solid;">Период обновления для websocket:</td>
+<td class="ta_l" style="border-top: 2px solid;"> <input id="wsPeriod" type="text" size="3" maxlength="4"> Сек.</td></tr>
+
+
+<tr><td class="ta_c" colspan="2"><input type="button" id="net_save_cfg" onclick="save_network();" value="Сохранить настройки" /></td></tr>
+<tr><td colspan="2" id="net_saveok" class="ta_c" style="font-weidth: bold; color:green; display: none;">New setting will be effective after restart.</td></tr>
+<tr><td class="ta_c" colspan="2" class="ta_c" style="color: red; display: none;" id="net_save_fail">Update failed!!</td></tr>
+</tbody></table>
+</div>
+
+<div class="pages" id="param_setup" style="display: none;">
+<table class="param"><tbody>
+<tr><td class="ta_r">Номинальная мощность ТЭНов: </td>
+<td class="ta_l"><input id="maxPower" type="text" size="5" maxlength="8"> Вт.</td></tr>
+<tr><td class="ta_r">Мощность в режиме регулятора мощности: </td>
+<td class="ta_l"><input id="ustPowerReg" type="text" size="5" maxlength="8"> Вт.</td></tr>
+<tr><td class="ta_r">Температура окончания режима разгона: </td>
+<td class="ta_l"><input id="tempEndRectRazgon" type="text" size="4" maxlength="4"> C</td></tr>
+<tr><td class="ta_r">Мощность ректификации: </td>
+<td class="ta_l"><input id="powerRect" type="text" size="5" maxlength="8"> Вт.</td></tr>
+<tr><td class="ta_r">Температура окончания отбора голов: </td>
+<td class="ta_l"><input id="tEndRectOtbGlv" type="text" size="6" maxlength="6"> C</td></tr>
+<tr><td class="ta_r">Период для шим'a отбора голов: </td>
+<td class="ta_l"><input id="timeChimRectOtbGlv" type="text" size="4" maxlength="4"> Сек</td></tr>
+<tr><td class="ta_r">Процент ШИМ отбора голов: </td>
+<td class="ta_l"><input id="procChimOtbGlv" type="text" size="3" maxlength="3"> %</td></tr>
+<tr><td class="ta_r">Минимальный процент ШИМ'а отбора СР: </td>
+<td class="ta_l"><input id="minProcChimOtbSR" type="text" size="3" maxlength="3"> %</td></tr>
+<tr><td class="ta_r">Начальный процент ШИМ отбора СР: </td>
+<td class="ta_l"><input id="beginProcChimOtbSR" type="text" size="3" maxlength="3"> %</td></tr>
+<tr><td class="ta_r">Период для шим'a отбора СР: </td>
+<td class="ta_l"><input id="timeChimRectOtbSR" type="text" size="4" maxlength="4"> Сек.</td></tr>
+<tr><td class="ta_r">Дельта температуры для ректификации: </td>
+<td class="ta_l"><input id="tempDeltaRect" type="text" size="4" maxlength="4"> C</td></tr>
+<tr><td class="ta_r">Температура окончания отбора СР: </td>
+<td class="ta_l"><input id="tempEndRectOtbSR" type="text" size="4" maxlength="4"/> C</td></tr>
+<tr><td class="ta_r">Температура в кубе, при которой прекращается ректификация: </td>
+<td class="ta_l"><input id="tempEndRect" type="text" size="4" maxlength="4" /> C</td></tr>
+<tr><td class="ta_r">Поправка для датчика давления: </td>
+<td class="ta_l"><input id="p_MPX5010" type="text" size="4" maxlength="4"></td></tr>
+<tr><td class="ta_r">Время стабилизации колонны: </td>
+<td class="ta_l"><input id="timeStabKolonna" type="text" size="6" maxlength="6" /> Сек.</td></tr>
+<tr><td class="ta_r">Таймаут для повторной стабилизации колонны: </td>
+<td class="ta_l"><input id="timeRestabKolonna" type="text" size="8" maxlength="8"> Сек.</td></tr>
+<tr><td class="ta_r">Процент 100 Гц шим для защиты клапанов от перегрева: </td>
+<td class="ta_l"><input id="pShim" type="text" size="4" maxlength="4" /> В.</td></tr>
+
+<tr><td class="ta_r">Уровень проводимости, меньше которого переходим к СР: </td>
+<td class="ta_l"><input id="urovenProvodimostSR" type="text" size="6" maxlength="6" /></td></tr>
+<tr><td class="ta_r">Количество значений в таблице обучения ШИМ: </td>
+<td class="ta_l"><input id="cntCHIM" type="text" size="8" maxlength="8" /></td></tr>
+<tr><td class="ta_r">Шаг ушеньшения % ШИМ'a при отборе СР: </td>
+<td class="ta_l"><input id="decrementCHIM" type="text" size="3" maxlength="3" /> %</td></tr>
+<tr><td class="ta_r">Шаг увеличения % ШИМ'a при отборе СР: </td>
+<td class="ta_l"><input id="incrementCHIM" type="text" size="3" maxlength="3" /> %</td></tr>
+<tr><td class="ta_r">Макс время стабилизации до увеличения ШИМ'а СР: </td>
+<td class="ta_l"><input id="timeAutoIncCHIM" type="text" size="5" maxlength="5"> Сек</td></tr>
+
+<tr><td class="ta_r" colspan="2">&nbsp;</td></tr>
+
+<tr><td class="ta_r">Мощность в режиме дистилляции: </td>
+<td class="ta_l"><input id="powerDistil" type="text" size="5" maxlength="8"> Вт.</td></tr>
+
+<tr><td class="ta_r">Температура куба окончания дистилляции: </td>
+<td class="ta_l"><input id="tempEndDistil" type="text" size="4" maxlength="4" /> C</td></tr>
+
+<tr><td class="ta_r" colspan="2">&nbsp;</td></tr>
+
+<tr><td class="ta_r">Тихий режим работы клапанов: </td>
+<td class="ta_l"><input id="klpSilentNode" type="checkbox" value=1></td></tr>
+
+<tr><td class="ta_r">Давление при котором надо выдавать сингал тревоги: </td>
+<td class="ta_l"><input id="alarmMPX5010" type="text" size="8" maxlength="8"></td></tr>
+<tr><td class="ta_r">Звук при переключении режимов: </td>
+<td class="ta_l"><input id="beepChangeState" type="checkbox" value=1></td></tr>
+
+<tr><td colspan="2" class="ta_c">
+<input type="button" value="Восстановить по умолчанию" onclick="default_parameters();"/>
+<input type="button" value="Сохранить изменения" onclick="set_parameters();"/>
+</td></tr>
+
+</tbody></table>
+</div>
+
+<div class="pages" id="sens_setup" style="display: none;">
+<h2>Температурные датчики</h2>
+<div class="ta_c"><a href="#" onclick="rescan_sens(); return false;">[Просканировать шину заного]</a></div>
+<table class="param" id="sens_table" style="width: 80%;">
+<thead>
+<tr><th>ID</th>
+<th>Rom</th>
+<th>Температура</th>
+<th>Тип</th>
+<th>Коррекция</th>
+<th>Описание</th>
+<th>Alarm</th>
+</tr>
+</thead><tbody id="sens_list">
+</tbody></table>
+
+<div id="sens_form" style="display: none;">
+<table class="param"><tbody>
+<tr><td class="ta_r">ROM адрес: </td>
+<td class="ta_l" id="rom"></td></tr>
+<tr><td class="ta_r">Назначение: </td>
+<td class="ta_l"><select id="type">
+<option value="0">Температура в кубе</option>
+<option value="1">Температура нижней части колонны</option>
+<option value="2">Температура верней части колонны</option>
+<option value="3">Температура в дефлегматоре</option>
+<option value="4">Температура воды охлаждения, вход</option>
+<option value="5">Температура воды охлаждения, выход</option>
+<option value="6">Аварийный датчик температуры</option>
+<option value="7">Не назначено</option>
+</select></td></tr>
+<tr><td class="ta_r">Описание: </td>
+<td class="ta_l"><input id="descr" type="text" size="40" maxlength="80" /></td></tr>
+<tr><td class="ta_r">Коррекция температуры: </td>
+<td class="ta_l"><input id="corr" type="text" size="4" maxlength="4" /> C</td></tr>
+<tr><td class="ta_r">Температура тревоги: </td>
+<td class="ta_l"><input id="talert" type="text" size="4" maxlength="4" /> C</td></tr>
+<tr><td colspan="2" class="ta_c">
+<input type="button" value="Вернутся" onclick="cancel_sens();"/>
+<input type="button" value="Сохранить" onclick="update_sens();"/>
+</td></tr>
+
+</tbody></table>
+
+</div>
+
+</div>
+
+<div class="pages" id="wifi_setup" style="display: none;">
+<h2>Найденые Wifi сети <a href="#wifi_setup" onclick="disp_wifi(); return false;">Обновить</a>
+<input type="button" onclick="do_reset();" value="Перезагрузка"/>
+</h2>
+<table class="param" style="width: 80%;">
+<thead>
+<tr><th>SSID</th>
+<th>Signal lvl.</th>
+<th>CH #</th>
+<th>Auth mode</th></tr>
+</thead><tbody id="wifi_ap_list">
+</tbody></table>
+
+<h2>Известные Wifi сети </h2>
+<table class="param" style="width: 80%;">
+<thead>
+<tr><th>SSID</th>
+<th>Password</th>
+<th>&nbsp;</th>
+</thead><tbody id="wifi_know_ap">
+</tbody></table>
+
+<div id="wifi_form" style="padding-top: 15px; overflow: auto;">
+<form id="form1" onsubmit="return false;">
+<table class="param"><tbody>
+<tr><th class="ta_r va_m">SSID:&nbsp;</th>
+<td><input name="ap_ssid" type="text" id="ap_ssid" maxlength="32"/></td></tr>
+<tr><th class="ta_r va_m">Пароль:&nbsp;</th>
+<td><input name="ap_pass" type="text" id="ap_pass" maxlength="32"/></td></tr>
+<tr><td colspan="2" class="ta_c">
+<input type="button" value="Добавить" onclick="add_wifi_ap();"/>
+<input type="button" value="Отмена" onclick="cancel_wifi();"/>
+</td></tr>
+<tr><td colspan="2" id="wifi_saveok" class="ta_c" style="font-weidth: bold; color:green; display: none;">Добавлено.</td></tr>
+<tr><td class="ta_c" colspan="2" class="ta_c" style="color: red; display: none;" id="add_wifi_fail">Ошибка добавления!!</td></tr>
+</tbody></table>
+
+</form></div>
+
+</div>
+
+<div class="pages" id="dir_list" style="display: none;">
+<h2>Список файлов</h2>
+<table class="param" style="width: 80%;">
+<thead>
+<tr><th>Имя</th>
+<th>Размер</th>
+<th>&nbsp;</th></tr>
+</thead><tbody id="dir_file_list">
+</tbody></table>
+</div>
+
+
+</div></div>
+
+<div class="footer">
+<span class="ta_l" style="padding-left: 15px;">hd_esp32 Copyright &copy; 2018,
+</span>
+<span class="Version"></span>
+<span class="usedBytes"></span>
+<span class="totalBytes"></span>
+<span class="heap"></span>
+</div>
+
+</div>
+<script>
+var Id;
+$.ajaxSetup({async: false});
+
+switch_mode = function(new_mode) {
+  $("#sw_mode").hide();
+  $.post('/setmainmode', {
+        'new_mode': $('#new_mode').val(),
+  }, function(d) {
+	showStick(d.err, d.msg);
+	disp_main();
+  }, 'json');
+}
+
+prev_status = function() {
+  $("#prev_status").hide();
+  $.post('/set_status', {
+        'new': 0,
+  }, function(d) {
+	showStick(d.err, d.msg);
+	disp_main();
+  }, 'json');
+}
+
+next_status = function() {
+  $("#next_status").hide();
+  $.post('/set_status', {
+        'new': 1,
+  }, function(d) {
+	showStick(d.err, d.msg);
+	disp_main();
+  }, 'json');
+}
+
+StartProcess = function() {
+ $.get('/startprocess', {
+ }, function(d) {
+	showStick(d.err, d.msg);
+  }, 'json');
+}
+EndProcess = function() {
+ $.get('/endprocess', {
+ }, function(d) {
+	showStick(d.err, d.msg);
+  }, 'json');
+}
+
+setPower = function(delta) {
+ $.post('/setpower', {
+        'power': eval($('#new_power').val()) + delta,
+ }, function(d) {
+	$('#new_power').val("");
+	showStick(d.err, d.msg);
+	disp_main();
+  }, 'json');
+}
+
+klp_disp = function(id) {
+  $.get('/klp_status', {
+        'id': id
+  }, function(k) {
+	var html;
+	if (eval(k.is_pwm)) {
+		if (eval(k.is_open)) html = "Открыт. ";
+		else html = "Закрыт. ";
+		html += "Шим режим "+k.pwm_time+"сек "+k.pwm_percent+" %";
+	} else {
+		if (eval(k.is_open)) html = "Открыт";
+		else html = "Закрыт";
+	}
+	$(".klp_status_"+k.id).html(html);
+	$("#klp_shim_"+k.id).val(k.pwm_time);
+	$("#klp_on_"+k.id).val(k.pwm_percent);
+        showStick(k.err, k.msg);
+  }, 'json');
+}
+
+klp_on = function(id) {
+ $.post('/klp_on', {
+        'id': id
+ }, function(d) {
+	klp_disp(id);
+ }, 'json');
+}
+klp_off = function(id) {
+ $.post('/klp_off', {
+        'id': id
+ }, function(d) {
+	klp_disp(id);
+ }, 'json');
+}
+klp_shim_on = function(id) {
+ $.post('/klp_shim_on', {
+        'id': id,
+        'period': $('#klp_shim_'+id).val(),
+        'klp_on': $('#klp_on_'+id).val()
+ }, function(d) {
+	klp_disp(id);
+ }, 'json');
+}
+
+disp_main = function() {
+  $(".pages").hide();
+  $(".modes").hide();
+
+  $.get('/maininfo', {}, function(d) {
+	$(".MainMode").val(d.MainMode);
+	$(".MainModeStr").html(d.MainModeStr);
+	$(".MainStatusStr").html(d.MainStatusStr);
+	$(".AlarmMode").html(d.AlarmMode);
+	$(".SetPower").html(d.SetPower+' Вт.');
+	$("#new_power").val(d.SetPower);
+	$(".CurPower").html(d.CurPower+' Вт.');
+	$(".CurVolts").html(d.CurVolts+' В.');
+	$(".CurFreq").html(d.CurFreq+' Гц.');
+	$(".WaterOn").html(d.WaterOn);
+	if (eval(d.TempWaterIn)<0) $(".TempWaterIn").html("Нет данных");
+	else $(".TempWaterIn").html(d.TempWaterIn);
+	if (eval(d.TempWaterOut)<0) $(".TempWaterOut").html("Нет данных");
+	else $(".TempWaterOut").html(d.TempWaterOut);
+	if (eval(d.WaterFlow)<0) $(".WaterFlow").html("Нет данных");
+	else $(".WaterFlow").html(d.WaterFlow);
+	$("#sw_mode").show();
+	$("#prev_status").show();
+	$("#next_status").show();
+        var t = $('.temp_sensors');
+        t.empty();
+        for (var i in d.sensors) {
+                var s = d.sensors[i];
+		t.append('<tr><td>['+s.type_str+'] '+s.descr+'</td><td class="sens_'+s.id+' bold">'+s.temp+' C</td><tr>');
+
+        }
+	for (var i in d.klapans) {
+                var k = d.klapans[i];
+                var html;
+                if (eval(k.is_pwm)) {
+                        if (eval(k.is_open)) html = "Открыт. ";
+                        else html = "Закрыт. ";
+                        html += "Шим режим "+k.pwm_time+"сек "+k.pwm_percent+" %";
+                } else {
+                        if (eval(k.is_open)) html = "Открыт";
+                        else html = "Закрыт";
+                }
+                $(".klp_status_"+k.id).html(html);
+        }
+
+	switch(eval(d.MainMode)) {
+	case 2:
+		$('.distill').show();
+		break;
+	case 3:
+		$('.rectification').show();
+		break;
+	case 10:
+		$('.testklp').show();
+		break;
+	}
+  }, 'json');
+
+  $("#main_div").show();
+  window.location.hash = '#';
+}
+
+save_network = function () {
+  var secure=0, useSmsc=0;
+  if($('#secure').is(':checked')) secure=1;
+  if($('#useSmsc').is(':checked')) useSmsc=1;
+  $.post('/netcfg', {
+	'host': $('#host').val(),
+	'user': $('#newusername').val(),
+	'pass': $('#newpasswd').val(),
+	'secure': secure,
+	'smscUser': $('#smscUser').val(),
+	'smscHash': $('#smscHash').val(),
+	'smscPhones': $('#smscPhones').val(),
+	'useSmsc':useSmsc,
+	'wsPeriod': $('#wsPeriod').val()
+   }, function(d) {
+	$('#net_saveok').show();
+   }, 'json')
+   .fail(function() {
+	$('#net_save_fail').show();
+   })
+   .always(function() {
+   });
+}
+
+disp_network = function () {
+  $(".pages").hide();
+  $.get('/netcfg', {}, function(d) {
+	$("#host").val(d.host);
+	$("#newusername").val(d.user);
+	if (eval(d.secure)) $('#secure').prop('checked', 1);
+	else $('#secure').removeAttr('checked');
+	$('#smscUser').val(d.smscUser);
+	$('#smscHash').val(d.smscHash);
+	$('#smscPhones').val(d.smscPhones);
+	if (eval(d.useSmsc)) $('#useSmsc').prop('checked', 1);
+	else $('#useSmsc').removeAttr('checked');
+	$('#wsPeriod').val(d.wsPeriod);
+
+	$("#passmatch").hide();
+	$("#saveok").hide();
+	$("#net_save_fail").hide();
+  }, 'json');
+	window.location.hash = '#net_setup';
+	$("#net_setup").show();
+}
+
+
+default_parameters = function() {
+  $.get('/defparam', {}, function(d) {
+       disp_setting();
+   }, 'json');
+}
+
+set_parameters = function() {
+  var beepChangeState=0, klpSilentNode=0;
+  if($('#beepChangeState').is(':checked')) beepChangeState=1;
+  if($('#klpSilentNode').is(':checked')) klpSilentNode=1;
+
+  $.post('/saveparam', {
+        'maxPower': $("#maxPower").val(),
+        'ustPowerReg': $("#ustPowerReg").val(),
+	'tempEndRectRazgon': $("#tempEndRectRazgon").val(),
+	'powerRect': $("#powerRect").val(),
+	'tEndRectOtbGlv': $("#tEndRectOtbGlv").val(),
+	'timeChimRectOtbGlv': $("#timeChimRectOtbGlv").val(),
+	'procChimOtbGlv': $("#procChimOtbGlv").val(),
+	'minProcChimOtbSR': $("#minProcChimOtbSR").val(),
+	'tempStabSR': $("#tempStabSR").val(),
+	'beginProcChimOtbSR': $("#beginProcChimOtbSR").val(),
+	'timeChimRectOtbSR': $("#timeChimRectOtbSR").val(),
+	'tempDeltaRect': $("#tempDeltaRect").val(),
+	'tempEndRectOtbSR': $("#tempEndRectOtbSR").val(),
+	'tempEndRect': $("#tempEndRect").val(),
+	'p_MPX5010': $("#p_MPX5010").val(),
+	'timeStabKolonna': $("#timeStabKolonna").val(),
+	'timeRestabKolonna': $("#timeRestabKolonna").val(),
+	'pShim': $("#pShim").val(),
+	'klpSilentNode': klpSilentNode,
+	'urovenProvodimostSR': $("#urovenProvodimostSR").val(),
+	'cntCHIM': $("#cntCHIM").val(),
+	'decrementCHIM': $("#decrementCHIM").val(),
+	'incrementCHIM': $("#incrementCHIM").val(),
+	'timeAutoIncCHIM': $("#timeAutoIncCHIM").val(),
+        'powerDistil': $("#powerDistil").val(),
+        'tempEndDistil': $("#tempEndDistil").val(),
+	'alarmMPX5010': $("#alarmMPX5010").val(),
+	'beepChangeState': beepChangeState,
+   }, function(d) {
+       disp_setting();
+   }, 'json');
+
+}
+
+disp_setting = function() {
+  $(".pages").hide();
+  $.get('/rectparam.json', {}, function(d) {
+        $("#maxPower").val(d.maxPower);
+        $("#ustPowerReg").val(d.ustPowerReg);
+	$("#tempEndRectRazgon").val(d.tempEndRectRazgon);
+	$("#powerRect").val(d.powerRect);
+	$("#tEndRectOtbGlv").val(d.tEndRectOtbGlv);
+	$("#timeChimRectOtbGlv").val(d.timeChimRectOtbGlv);
+	$("#procChimOtbGlv").val(d.procChimOtbGlv);
+	$("#minProcChimOtbSR").val(d.minProcChimOtbSR);
+	$("#tempStabSR").val(d.tempStabSR);
+	$("#beginProcChimOtbSR").val(d.beginProcChimOtbSR);
+	$("#timeChimRectOtbSR").val(d.timeChimRectOtbSR);
+	$("#tempDeltaRect").val(d.tempDeltaRect);
+	$("#tempEndRectOtbSR").val(d.tempEndRectOtbSR);
+	$("#tempEndRect").val(d.tempEndRect);
+	$("#p_MPX5010").val(d.p_MPX5010);
+	$("#timeStabKolonna").val(d.timeStabKolonna);
+	$("#timeRestabKolonna").val(d.timeRestabKolonna);
+	$("#pShim").val(d.pShim);
+	if (eval(d.klpSilentNode)) $('#klpSilentNode').prop('checked', 1);
+        else $('#klpSilentNode').removeAttr('checked');
+	$("#urovenProvodimostSR").val(d.urovenProvodimostSR);
+	$("#cntCHIM").val(d.cntCHIM);
+	$("#decrementCHIM").val(d.decrementCHIM);
+	$("#incrementCHIM").val(d.incrementCHIM);
+	$("#timeAutoIncCHIM").val(d.timeAutoIncCHIM);
+	$("#powerDistil").val(d.powerDistil);
+	$("#tempEndDistil").val(d.tempEndDistil);
+	$("#alarmMPX5010").val(d.alarmMPX5010);
+	if (eval(d.beepChangeState)) $('#beepChangeState').prop('checked', 1);
+        else $('#beepChangeState').removeAttr('checked');
+
+  }, 'json');
+  $("#param_setup").show();
+  window.location.hash = '#param_setup';
+}
+
+
+cancel_sens = function() {
+  Id = -1;
+  $("#sens_form").hide();
+  $("#sens_table").show();
+  $("#rom").html("");
+  $("#type").val('0');
+  $("#corr").val('0');
+  $("#descr").val('');
+  $("#talert").val('0');
+}
+update_sens = function() {
+ $.post('/updatesens', {
+        'id': Id,
+        'type': $('#type').val(),
+        'descr': $('#descr').val(),
+        'corr': $('#corr').val(),
+        'talert': $('#talert').val()
+   }, function(d) {
+  	$("#rom").html("");
+	$("#type").val('0');
+	$("#corr").val('0');
+	$("#descr").val('');
+	$("#talert").val('0');
+        $("#sens_form").hide();
+	Id = -1;
+	showStick(d.err, d.msg);
+	disp_sensor();
+  }, 'json');
+}
+edit_sens = function(sens_id) {
+  $.get('/senslist', {}, function(d) {
+	for (var i in d) {
+                var s = d[i];
+		if (s.id == sens_id) {
+  			Id = sens_id;
+			$("#sens_table").hide();
+			$("#rom").html(s.rom);
+			$("#type").val(s.type);
+			$("#descr").val(s.descr);
+			$("#corr").val(s.corr);
+			$("#talert").val(s.talert);
+			$("#sens_form").show();
+		}
+	}
+  }, 'json');
+}
+rescan_sens = function() {
+  $.get('/rescansens', {}, function(d) {
+	showStick(d.err, d.msg);
+	disp_sensor();
+  }, 'json');
+}
+
+disp_sensor = function() {
+  $(".pages").hide();
+  $("#sens_form").hide();
+  var t = $('#sens_list');
+  t.empty();
+  $.get('/senslist', {}, function(d) {
+	var html;
+	for (var i in d) {
+		var s = d[i];
+		html = '<tr><td class="ta_c">'+s.id+
+		'</td><td><a href="#" onclick="edit_sens('+s.id+'); return false;">'+s.rom+
+		'</a></td><td class="sens_'+s.id+'">'+s.temp+' C.</td><td>'+
+		s.type_str + '</td><td class="ta_l"> ' +
+		s.corr + ' C</td><td class="ta_l"> ' +
+		s.descr + '</td><td class="ta_l"> ' +
+		s.talert+' C</td></tr>';
+		t.append(html);
+	}
+	$("#sens_setup").show();
+	$("#sens_table").show();
+  }, 'json');
+  window.location.hash = '#sens_setup';
+  
+}
+
+wifi_select_ap = function(ssid) {
+  $("#ap_ssid").val(ssid);
+  $("#ap_pass").val('');
+  $("#wifi_form").show();
+}
+add_wifi_ap = function() {
+   $.post('/addwifi', {
+        'ssid': $('#ap_ssid').val(),
+        'pass': $('#ap_pass').val(),
+   }, function(d) {
+  	$("#ap_ssid").val('');
+	$("#ap_pass").val('');
+        $('#wifi_saveok').show();
+	disp_wifi();
+   }, 'json')
+   .fail(function() {
+        $('#add_wifi_fail').show();
+   })
+   .always(function() {
+   });
+}
+remove_wifi_ap = function(ssid) {
+   $.post('/delwifi', {
+        'ssid': ssid,
+   }, function(d) {
+	disp_wifi();
+   }, 'json')
+   .always(function() {
+   });
+
+}
+
+cancel_wifi = function() {
+  $('#wifi_saveok').hide();
+  $('#add_wifi_fail').hide();
+  $("#ap_ssid").val('');
+  $("#ap_pass").val('');
+}
+
+disp_wifi = function() {
+  $(".pages").hide();
+  var t = $('#wifi_ap_list');
+  t.empty();
+
+  $.get('/wifi', {}, function(d) {
+	var html;
+	for (var i in d) {
+		var w = d[i];
+		html = '<tr id="'+w.ssid+'"><td class="ta_l"><a href="#" onclick="wifi_select_ap(\''+w.ssid+'\'); return false;">'+w.ssid+
+		'</a></td><td>'+w.rssi+' dB.</td><td>'+
+		w.primary + '</td><td class="ta_l"> ' +
+		w.authmode +'</td></tr>';
+		t.append(html);
+	}
+	$("#wifi_setup").show();
+  	$('#wifi_saveok').hide();
+	$('#add_wifi_fail').hide();
+	window.location.hash = '#wifi_setup';
+  }, 'json');
+
+  t = $('#wifi_know_ap');
+  t.empty();
+  $.get('/wificfg', {}, function(d) {
+	var html;
+	for (var i in d) {
+		var w = d[i];
+		html = '<tr id="'+w.ssid+'"><td class="ta_l">'+w.ssid+
+		'</td><td>'+w.pass+'</td><td>'+
+		'<a href="#" onclick="remove_wifi_ap(\''+w.ssid+'\'); return false;">Remove</a></td></tr>';
+		t.append(html);
+	}
+  }, 'json');
+}
+
+open_file = function(file) {
+	window.open('/'+file,'_blank');
+}
+
+delete_file = function(file) {
+   $.post('/rm', {
+        'file': file,
+   }, function(d) {
+	disp_fs();
+   }, 'json');
+
+}
+
+
+
+disp_fs = function() {
+  $(".pages").hide();
+  var t = $('#dir_file_list');
+  t.empty();
+  $.get('/list', {}, function(d) {
+	var html;
+	for (var i in d) {
+		var f = d[i];
+		html = '<tr id="f_'+f.name+'"><td class="ta_l"><a href="#" onclick="open_file(\''+f.name+'\'); return false;">'+f.name+
+		'</a></td><td>'+f.size+' байт</td><td>'+
+		'<a href="#" onclick="delete_file(\''+f.name+'\'); return false;">Удалить</a>'+
+		'</td></tr>';
+		t.append(html);
+	}
+	$("#dir_list").show();
+	window.location.hash = '#disp_fs';
+  }, 'json');
+}
+
+_sysinfo = function() {
+  $.get('/sysinfo', {}, function(d) {
+	$(".Version").html('Версия: '+d.version+'. ');
+	$(".usedBytes").html('Использовано: '+d.usedBytes);
+	$(".totalBytes").html('Всего: '+d.totalBytes);
+	$(".heap").html('heap: '+d.heap);
+  }, 'json');
+}
+
+do_reset = function() {
+  $.get('/r', {}, function(d) {
+	window.location.href="/index.html";
+  }, 'html');
+
+}
+
+$(document).ready(function() {
+  var h = window.location.hash;
+  var u = geturlpath();
+  $(".pages").hide();
+  _sysinfo();
+
+  switch(h) {
+  case '#net_setup':
+	disp_network();
+	break;
+  case '#param_setup':
+	disp_setting();
+	break;
+  case '#sens_setup':
+	disp_sensor();
+	break;
+  case '#wifi_setup':
+	disp_wifi();
+	break;
+  case '#disp_fs':
+	disp_fs();
+	break;
+  default:
+	disp_main();
+	break;
+  }
+  websock_init(u[4], 'web');
+});
+$(window).unload( function () {
+  if ('undefined' != typeof WS_SOCK) {
+	WS_SOCK.close();
+  }
+});
+</script>
+
+</body></html>
+
