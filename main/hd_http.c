@@ -76,8 +76,6 @@ struct http_digest {
 };
 
 
-static const char *json_ok = "{\"err\":\"0\",\"msg\":\"OK\"}";
-static const char *json_err = "{\"err\":\"1\",\"msg\":\"Error\"}";
 static const char *auth_html ="<!DOCTYPE HTML>\n"
 "<html>\n<head>\n<title>401 Unauthorized</title>\n</head><body>\n"
 "<h1>401 Unauthorized</h1>\n"
@@ -134,6 +132,18 @@ vaiable_list DEFL_PARAMS[] =
 
 	{NULL}
 };
+
+static void json_ok(HttpdConnData *c)
+{
+	httpdSend(c, "{\"err\":\"0\",\"msg\":\"OK\"}", 22);
+}
+
+
+static void json_err(HttpdConnData *c)
+{
+	httpdSend(c, "{\"err\":\"1\",\"msg\":\"Error\"}", 24);
+}
+
 
 
 static const char *get_http_method(char method)
@@ -457,10 +467,10 @@ int httpNetSetup(HttpdConnData *connData)
 			char b[128];
 			snprintf(b, sizeof(b), "%s:%s:%s", httpUser, CONFIG_REALM, httpPassword);
 			md5_hash(ha1, b);
-			httpdSend(connData, json_ok, strlen(json_ok));
+			json_ok(connData);
 		} else {
-			httpdSend(connData, json_err, strlen(json_err));
-		}
+			json_err(connData);
+		}                                                  
 	}
 	return HTTPD_CGI_DONE;
 }
@@ -474,7 +484,7 @@ int httpParamDefault(HttpdConnData *connData)
 
 	send_json_headers(connData);
 	param_default();
-	httpdSend(connData, json_ok, strlen(json_ok));
+	json_ok(connData);
 	return HTTPD_CGI_DONE;
 }
 
@@ -526,7 +536,9 @@ int httpParamSetup(HttpdConnData *connData)
 			cJSON_Delete(ja);
 			fclose(f);
 		}
-		httpdSend(connData, json_ok, strlen(json_ok));
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
 	return HTTPD_CGI_DONE;
 }
@@ -543,8 +555,11 @@ int httpSetPower(HttpdConnData *connData)
 
 		httpdFindArg(connData->post->buff, "power", ps, sizeof(ps));
 		setPower(atoi(ps));
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
-	httpdSend(connData, json_ok, strlen(json_ok));
+
 	return HTTPD_CGI_DONE;
 }
 
@@ -558,8 +573,10 @@ int httpSetMainMode(HttpdConnData *connData)
 		char nm[10]="0";
 		httpdFindArg(connData->post->buff, "new_mode", nm, sizeof(nm));
 		setMainMode(atoi(nm));
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
-	httpdSend(connData, json_ok, strlen(json_ok));
 	return HTTPD_CGI_DONE;
 }
 
@@ -573,8 +590,10 @@ int httpSetStatus(HttpdConnData *connData)
 		char nm[10]="0";
 		httpdFindArg(connData->post->buff, "new", nm, sizeof(nm));
 		setStatus(atoi(nm));
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
-	httpdSend(connData, json_ok, strlen(json_ok));
 	return HTTPD_CGI_DONE;
 }
 
@@ -585,7 +604,7 @@ int httpStartProcess(HttpdConnData *connData)
 	if (checkAuth(connData)) return HTTPD_CGI_DONE;
 	send_json_headers(connData);
 	MainStatus = PROC_START;
-	httpdSend(connData, json_ok, strlen(json_ok));
+	json_ok(connData);
 	return HTTPD_CGI_DONE;
 
 }
@@ -596,7 +615,7 @@ int httpEndProcess(HttpdConnData *connData)
 	if (checkAuth(connData)) return HTTPD_CGI_DONE;
 	send_json_headers(connData);
 	MainStatus = PROC_END;
-	httpdSend(connData, json_ok, strlen(json_ok));
+	json_ok(connData);
 	return HTTPD_CGI_DONE;
 }
 
@@ -608,31 +627,37 @@ int httpKlpStatus(HttpdConnData *connData)
 
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;
 	if (checkAuth(connData)) return HTTPD_CGI_DONE;
+
 	send_json_headers(connData);
-	ja = cJSON_CreateObject();
+	if (connData->requestType == HTTPD_METHOD_GET) {
+		ja = cJSON_CreateObject();
 
-	httpdFindArg(connData->getArgs, "id", id, sizeof(id));
-	i = atoi(id);
-	if (i < MAX_KLP) {
-		int pwm = Klp[i].open_time+Klp[i].close_time;
-		float pwm_percent = 0;
-		if (Klp[i].open_time>0) {
-			float p = pwm/Klp[i].open_time;
-			if (p) pwm_percent = 100/p;
+		httpdFindArg(connData->getArgs, "id", id, sizeof(id));
+		i = atoi(id);
+		if (i < MAX_KLP) {
+			int pwm = Klp[i].open_time+Klp[i].close_time;
+			float pwm_percent = 0;
+			if (Klp[i].open_time>0) {
+				float p = pwm/Klp[i].open_time;
+				if (p) pwm_percent = 100/p;
+			}
+			cJSON_AddItemToObject(ja, "id", cJSON_CreateNumber(i));
+			cJSON_AddItemToObject(ja, "is_pwm", cJSON_CreateNumber(Klp[i].is_pwm));
+			cJSON_AddItemToObject(ja, "is_open", cJSON_CreateNumber(Klp[i].is_open));
+			cJSON_AddItemToObject(ja, "pwm_time", cJSON_CreateNumber(pwm));
+			cJSON_AddItemToObject(ja, "pwm_percent", cJSON_CreateNumber(pwm_percent));
+			cJSON_AddItemToObject(ja, "err", cJSON_CreateNumber(0));
+			cJSON_AddItemToObject(ja, "msg", cJSON_CreateString("OK"));
 		}
-		cJSON_AddItemToObject(ja, "id", cJSON_CreateNumber(i));
-		cJSON_AddItemToObject(ja, "is_pwm", cJSON_CreateNumber(Klp[i].is_pwm));
-		cJSON_AddItemToObject(ja, "is_open", cJSON_CreateNumber(Klp[i].is_open));
-		cJSON_AddItemToObject(ja, "pwm_time", cJSON_CreateNumber(pwm));
-		cJSON_AddItemToObject(ja, "pwm_percent", cJSON_CreateNumber(pwm_percent));
-		cJSON_AddItemToObject(ja, "err", cJSON_CreateNumber(0));
-		cJSON_AddItemToObject(ja, "msg", cJSON_CreateString("OK"));
+		char *r=cJSON_Print(ja);
+		if (r) {
+			httpdSend(connData, r, strlen(r));
+			free(r);
+		}
+		cJSON_Delete(ja);
+	} else {
+		json_err(connData);
 	}
-	char *r=cJSON_Print(ja);
-	httpdSend(connData, r, strlen(r));
-	if (r) free(r);
-	cJSON_Delete(ja);
-
 	return HTTPD_CGI_DONE;
 }
 
@@ -645,8 +670,10 @@ int httpKlpOn(HttpdConnData *connData)
 		char id[10];
 		httpdFindArg(connData->post->buff, "id", id, sizeof(id));
 		openKlp(atoi(id));
-	}
-	httpdSend(connData, json_ok, strlen(json_ok));
+		json_ok(connData);		
+	} else {
+		json_err(connData);
+	}	
 	return HTTPD_CGI_DONE;
 
 }
@@ -660,8 +687,10 @@ int httpKlpOff(HttpdConnData *connData)
 		char id[10];
 		httpdFindArg(connData->post->buff, "id", id, sizeof(id));
 		closeKlp(atoi(id));
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
-	httpdSend(connData, json_ok, strlen(json_ok));
 	return HTTPD_CGI_DONE;
 }
 
@@ -683,9 +712,10 @@ int httpKlpShimOn(HttpdConnData *connData)
 			topen = period/100*percent;
 			if (topen > 0) startKlpPwm(atoi(id), topen, period-topen);
 		}
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
-
-	httpdSend(connData, json_ok, strlen(json_ok));
 	return HTTPD_CGI_DONE;
 }
 
@@ -717,8 +747,10 @@ int httpListSensor(HttpdConnData *connData)
 	}
 
 	char *r=cJSON_Print(ja);
-	httpdSend(connData, r, strlen(r));
-	if (r) free(r);
+	if (r) {
+		httpdSend(connData, r, strlen(r));
+		free(r);
+	}
 	cJSON_Delete(ja);
 	return HTTPD_CGI_DONE;
 }
@@ -742,7 +774,7 @@ int httpUpdateSensor(HttpdConnData *connData)
 		id = atoi(descr);
 
 		if(id>=MAX_DS) {
-			httpdSend(connData, json_err, -1);
+			json_err(connData);
 			return HTTPD_CGI_DONE;
 		}
 		d = &ds[id];
@@ -817,8 +849,10 @@ int httpUpdateSensor(HttpdConnData *connData)
 			fclose(f);
 			cJSON_Delete(root);
 		}
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
-	httpdSend(connData, json_ok, -1);
 	return HTTPD_CGI_DONE;
 }
 
@@ -829,7 +863,7 @@ int httpRescanSensor(HttpdConnData *connData)
 
 	send_json_headers(connData);
 	ds_init(0, NULL);
-	httpdSend(connData, json_ok, -1);
+	json_ok(connData);
 	return HTTPD_CGI_DONE;
 }
 
@@ -842,9 +876,12 @@ int httpMainInfo(HttpdConnData *connData)
 	send_json_headers(connData);
 	cJSON *ja = getInformation();
 	char *r=cJSON_Print(ja);
-	httpdSend(connData, r, strlen(r));
+	if (r) {
+		httpdSend(connData, r, strlen(r));
+		free(r);
+	}
 	cJSON_Delete(ja);
-	if (r) free(r);
+
 	return HTTPD_CGI_DONE;
 }
 
@@ -866,9 +903,11 @@ int httpSysinfo(HttpdConnData *connData)
 	cJSON_AddItemToObject(ja, "usedBytes", cJSON_CreateNumber(SPIFFS_used));
 	cJSON_AddItemToObject(ja, "heap", cJSON_CreateNumber(esp_get_free_heap_size()));
 	char *r=cJSON_Print(ja);
-	httpdSend(connData, r, strlen(r));
+	if (r) {
+		httpdSend(connData, r, strlen(r));
+		free(r);
+	}
 	cJSON_Delete(ja);
-	if (r) free(r);
 	return HTTPD_CGI_DONE;
 }
 
@@ -902,9 +941,11 @@ int httpDirList(HttpdConnData *connData)
 	}
 
 	char *r=cJSON_Print(ja);
-	httpdSend(connData, r, strlen(r));
+	if (r) {
+		httpdSend(connData, r, strlen(r));
+		free(r);
+	}
 	cJSON_Delete(ja);
-	if (r) free(r);
 	return HTTPD_CGI_DONE;
 }
 
@@ -912,6 +953,7 @@ int httpRmFile(HttpdConnData *connData)
 {
 	struct stat st;
 
+	send_json_headers(connData);
 	if (connData->requestType == HTTPD_METHOD_POST) {
 		char f[85];
 		f[0] = '/'; f[1]='s'; f[2] = '/';
@@ -920,9 +962,10 @@ int httpRmFile(HttpdConnData *connData)
 			// Delete it if it exists
 			unlink(f);
 		}
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
-	send_json_headers(connData);
-	httpdSend(connData, json_ok, strlen(json_ok));
 	return HTTPD_CGI_DONE;
 }
 
@@ -950,9 +993,11 @@ int httpScanWiFi(HttpdConnData *connData)
 		}
 	}
 	char *r=cJSON_Print(ja);
-	httpdSend(connData, r, strlen(r));
+	if (r) {
+		httpdSend(connData, r, strlen(r));
+		free(r);
+	}
 	cJSON_Delete(ja);
-	if (r) free(r);
 	return HTTPD_CGI_DONE;
 }
 
@@ -996,8 +1041,6 @@ int httpAddWiFi(HttpdConnData *connData)
 
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;
 	if (checkAuth(connData)) return HTTPD_CGI_DONE;
-
-	httpdStartResponse(connData, 200);
 
 	if (connData->requestType == HTTPD_METHOD_POST) {
 		bool dupe=false;
@@ -1068,15 +1111,18 @@ int httpAddWiFi(HttpdConnData *connData)
 		}
 
 		if (httpdFindArg(connData->post->buff, "redirect", redirect, sizeof(redirect)) > 0) {
+			httpdStartResponse(connData, 200);
 			httpdHeader(connData, "Content-Type", "text/html");
 			httpdEndHeaders(connData);
 			httpdSend(connData, "<html><head></head><body><div>Credentials Saved<br />Trying to connect ESP to network after reset.<br />If it fails reconnect to AP to try again.</div></body></html>", -1);
 			return HTTPD_CGI_DONE;
 		}
+		send_json_headers(connData);
+		json_ok(connData);
+	} else {
+		send_json_headers(connData);
+		json_err(connData);
 	}
-
-	send_json_headers(connData);
-	httpdSend(connData, json_ok, strlen(json_ok));
 	return HTTPD_CGI_DONE;
 }
 
@@ -1138,8 +1184,10 @@ int httpDeleteWiFi(HttpdConnData *connData)
 			fclose(f);
 			cJSON_Delete(root);
 		}
+		json_ok(connData);
+	} else {
+		json_err(connData);
 	}
-	httpdSend(connData, json_ok, strlen(json_ok));
 	return HTTPD_CGI_DONE;
 }
 
@@ -1335,7 +1383,7 @@ int httpSms(HttpdConnData *connData)
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;
 	send_json_headers(connData);
 	sendSMS("test sms");
-	httpdSend(connData, json_ok, strlen(json_ok));
+	json_ok(connData);
 	return HTTPD_CGI_DONE;
 }
 
