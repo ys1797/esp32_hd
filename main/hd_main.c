@@ -681,7 +681,7 @@ static void tg0_timer0_init()
     /* Запускаем отсчет таймера */
     timer_start(timer_group, timer_idx);
 
-    xTaskCreate(timer_example_evt_task, "timer_evt_task", 2048, NULL, 5, NULL);
+    xTaskCreate(timer_example_evt_task, "timer_evt_task", 8192, NULL, 5, NULL);
 }
 
 // ISR triggered by GPIO edge at the end of each Alternating Current half-cycle.
@@ -1040,6 +1040,7 @@ void setMainMode(int nm)
 // Ручная установка состояния конечного автомата
 void setStatus(int next)
 {
+	float topen;
 
 	if (next && MainStatus>=PROC_END) return;
 	if (!next && MainStatus<= START_WAIT) return;
@@ -1049,47 +1050,73 @@ void setStatus(int next)
 		// Режим дистилляции
 		if (next) {
 			if (MainStatus == START_WAIT) MainStatus = PROC_START;
-			if (MainStatus == PROC_START) MainStatus = PROC_RAZGON;
-			if (MainStatus == PROC_RAZGON) MainStatus = PROC_DISTILL;
-			if (MainStatus == PROC_DISTILL) MainStatus = PROC_WAITEND;
-			if (MainStatus == PROC_WAITEND) MainStatus = PROC_END;
+			else if (MainStatus == PROC_START) MainStatus = PROC_RAZGON;
+			else if (MainStatus == PROC_RAZGON) MainStatus = PROC_DISTILL;
+			else if (MainStatus == PROC_DISTILL) MainStatus = PROC_WAITEND;
+			else if (MainStatus == PROC_WAITEND) MainStatus = PROC_END;
 		} else {
 			if (MainStatus == PROC_START) MainStatus = START_WAIT;
-			if (MainStatus == PROC_RAZGON) MainStatus = PROC_START;
-			if (MainStatus == PROC_DISTILL) MainStatus = PROC_RAZGON;
-			if (MainStatus == PROC_WAITEND) MainStatus = PROC_DISTILL;
-			if (MainStatus == PROC_END) MainStatus = PROC_WAITEND;
+			else if (MainStatus == PROC_RAZGON) MainStatus = PROC_START;
+			else if (MainStatus == PROC_DISTILL) MainStatus = PROC_RAZGON;
+			else if (MainStatus == PROC_WAITEND) MainStatus = PROC_DISTILL;
+			else if (MainStatus == PROC_END) MainStatus = PROC_WAITEND;
 		}
 
 		break;
 	case MODE_RECTIFICATION:
 		// Режим ректификации
 		if (next) {
-			if (MainStatus == START_WAIT) MainStatus = PROC_START;
-			if (MainStatus == PROC_START) MainStatus = PROC_RAZGON;
-			if (MainStatus == PROC_RAZGON) MainStatus = PROC_STAB;
-			if (MainStatus == PROC_STAB) MainStatus = PROC_GLV;
-			if (MainStatus == PROC_GLV) MainStatus = PROC_T_WAIT;
-			if (MainStatus == PROC_T_WAIT) MainStatus = PROC_SR;
-			if (MainStatus == PROC_SR) MainStatus = PROC_HV;
-			if (MainStatus == PROC_HV) MainStatus = PROC_WAITEND;
-			if (MainStatus == PROC_WAITEND) MainStatus = PROC_END;
+			if (MainStatus == START_WAIT) {
+				MainStatus = PROC_START;
+			} else if (MainStatus == PROC_START) {
+				setPower(maxPower);	//  максимальная мощность для разгона
+				MainStatus = PROC_RAZGON;
+			} else if (MainStatus == PROC_RAZGON) {
+				openKlp(klp_water);	// Открытие клапана воды
+				setPower(powerRect);    // Устанавливаем мощность ректификации
+				MainStatus = PROC_STAB; // Ручной переход в режим стабилизации
+			} else if (MainStatus == PROC_STAB) {
+				setPower(powerRect);   // Устанавливаем мощность ректификации
+				secTempPrev = uptime_counter;
+				// Устанавливаем медленный ШИМ клапан отбора хвостов и голов в соответвии с установками
+				topen = (float)(timeChimRectOtbGlv)/100*(float)(procChimOtbGlv);
+				startGlvKlp(topen, timeChimRectOtbGlv-topen);
+				tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
+				MainStatus = PROC_GLV; // Ручной переход в режим отбора голов
+			} else if (MainStatus == PROC_GLV) {
+				tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
+				closeKlp(klp_glwhq);  // Отключение клапана отбора голов/хвостов
+				ProcChimSR = beginProcChimOtbSR; // Устанавливаем стартовый % отбора товарного продукта
+				MainStatus = PROC_T_WAIT;
+			} else if (MainStatus == PROC_T_WAIT) {
+				MainStatus = PROC_SR;
+			} else if (MainStatus == PROC_SR) {
+				MainStatus = PROC_HV;
+			} else if (MainStatus == PROC_HV) {
+				setPower(0);		// Снятие мощности с тэна
+				closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
+				MainStatus = PROC_WAITEND;
+			} else if (MainStatus == PROC_WAITEND) {
+				setPower(0);		// Снятие мощности с тэна
+				closeAllKlp();		// Закрытие всех клапанов.
+				MainStatus = PROC_END;
+			}
 		} else {
 			if (MainStatus == PROC_START) MainStatus = START_WAIT;
-			if (MainStatus == PROC_RAZGON) MainStatus = PROC_START;
-			if (MainStatus == PROC_STAB) MainStatus = PROC_RAZGON;
-			if (MainStatus == PROC_GLV) MainStatus = PROC_STAB;
-			if (MainStatus == PROC_T_WAIT) MainStatus = PROC_GLV;
-			if (MainStatus == PROC_SR) MainStatus = PROC_GLV;
-			if (MainStatus == PROC_HV) MainStatus = PROC_SR;
-			if (MainStatus == PROC_WAITEND) MainStatus = PROC_HV;
-			if (MainStatus == PROC_END) MainStatus = PROC_WAITEND;
+			else if (MainStatus == PROC_RAZGON) MainStatus = PROC_START;
+			else if (MainStatus == PROC_STAB) MainStatus = PROC_RAZGON;
+			else if (MainStatus == PROC_GLV) MainStatus = PROC_STAB;
+			else if (MainStatus == PROC_T_WAIT) MainStatus = PROC_GLV;
+			else if (MainStatus == PROC_SR) MainStatus = PROC_GLV;
+			else if (MainStatus == PROC_HV) MainStatus = PROC_SR;
+			else if (MainStatus == PROC_WAITEND) MainStatus = PROC_HV;
+			else if (MainStatus == PROC_END) MainStatus = PROC_WAITEND;
 		}
 		break;
 	default:
 		break;
 	}
-	myBeep(false);
+	if (beepChangeState) myBeep(false);
 }
 
 /*
@@ -1137,9 +1164,9 @@ void Rectification(void)
 		if (-1 == t) break;
 		if (t < fabs(tempEndRectRazgon)) break;
 
-		// Открытие клапана воды
-		openKlp(klp_water);
-
+		// Переход в режим стабилизации колонны
+		openKlp(klp_water);	// Открытие клапана воды
+		setPower(powerRect);	// Устанавливаем мощность ректификации
 		// Запоминаем температуру и время
 		tempTube20Prev = getTube20Temp();
 		secTempPrev = uptime_counter;
@@ -1147,8 +1174,7 @@ void Rectification(void)
 		if (beepChangeState) myBeep(true);
 
 	case PROC_STAB:
-		// Стабилизация температуры
-		openKlp(klp_water);	// Открытие клапана воды (на всякий случай)
+		// Стабилизация колонны
 		t = getTube20Temp();
 		if (-1 == t) break;
 		if (t < 70) {
@@ -1168,9 +1194,6 @@ void Rectification(void)
 				// Если с момента последнего измерения прошло больше
 				// cекунд чем нужно, считаем, что температура в колонне
 				// стабилизировалась и переходим к отбору голов
-				MainStatus = PROC_GLV;
-				if (beepChangeState) myBeep(true);				
-				secTempPrev = uptime_counter;
 			} else {
 				// Рассогласование температуры запоминаем
 				// температуру и время
@@ -1185,31 +1208,31 @@ void Rectification(void)
 				// заданного количества секунд - продолжаем ждать
 				break;
 			}
-			// Переходим к следующему этапу - отбору голов. 
-			MainStatus = PROC_GLV;
-			if (beepChangeState) myBeep(true);
-			secTempPrev = uptime_counter;
 		}
-		// Устанавливаем мощность ректификации
-		setPower(powerRect);
 
-	case PROC_GLV:
-		// Отбор головных фракций
+		// Переходим к следующему этапу - отбору голов. 
+		MainStatus = PROC_GLV;
+		if (beepChangeState) myBeep(true);
+		secTempPrev = uptime_counter;
+		setPower(powerRect);	// Устанавливаем мощность ректификации
 		// Устанавливаем медленный ШИМ клапан отбора хвостов и голов в соответвии с установками
-		topen = timeChimRectOtbGlv/100*procChimOtbGlv;
-		startGlvKlp(topen, timeChimRectOtbGlv-topen);
+		topen = (float)(timeChimRectOtbGlv)/100*(float)(procChimOtbGlv);
+		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
 
 		tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
 
+	case PROC_GLV:
+		// Отбор головных фракций
 		t = getCubeTemp();
 		if (t < tEndRectOtbGlv) {
 			// Пока температура в кубе не выросла выше окончания отбора голов, продолжаем это состояни
 			break;       
 		}
-
+		// Окончание отбора голов
 		closeKlp(klp_glwhq); 			// Отключение клапана отбора голов/хвостов
 		MainStatus = PROC_T_WAIT;		// Переходим к стабилизации температуры
 		ProcChimSR = beginProcChimOtbSR;	// Устанавливаем стартовый % отбора товарного продукта
+		tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
 		if (beepChangeState) myBeep(true);
 
 	case PROC_T_WAIT:
@@ -1222,39 +1245,41 @@ void Rectification(void)
 			tempStabSR = getTube20Temp();
 			if (beepChangeState) myBeep(true);
 		}
-		closeKlp(klp_sr); 			// Отключение клапана продукта
 
 		t = getCubeTemp();
 		if (t >= tempEndRectOtbSR) {
 			// Переходим к отбору хвостов
-			MainStatus = PROC_HV;
+			topen = (float)(timeChimRectOtbGlv)*90/100;
+			startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
+        			MainStatus = PROC_HV;
 			if (beepChangeState) myBeep(true);
+			break;
 		}
 		
-		t = getTube20Temp();
-		if (t > tempStabSR) {
+		if (getTube20Temp() > tempStabSR) {
 			break;
 		}
 
-		secTempPrev = uptime_counter;	// Запомним время, когда стабилизировалась температура
-		MainStatus = PROC_SR;			// Переход к отбору продукта
-		if (beepChangeState) myBeep(true);
-
-	case PROC_SR:
-		// Отбор СР
-		closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
-//		setPower(powerRect);	// мощность ректификации
-
-		t = getCubeTemp();
+		// Переход к отбору товарного продукта 
 
 		// Реализуется отбор по-шпоре, что в функции прописано то и будет возвращено.
 		ProcChimSR = GetSrPWM();
 		// Устанавливаем медленный ШИМ клапана продукта
-		topen = timeChimRectOtbSR*ProcChimSR/100;
-		startSrKlp(topen, timeChimRectOtbSR-topen);
+		topen = (float)(timeChimRectOtbSR)*(float)(ProcChimSR)/100;
+		startSrKlp(topen, (float)(timeChimRectOtbSR)-topen);
+
+		secTempPrev = uptime_counter;	// Запомним время, когда стабилизировалась температура
+		MainStatus = PROC_SR;		// Переход к отбору продукта
+		if (beepChangeState) myBeep(true);
+
+	case PROC_SR:
+		// Отбор СР
+		t = getCubeTemp();
 
 		if (t >= tempStabSR+tempDeltaRect) {
 			// Температура превысила температуру стабилизации
+			closeKlp(klp_sr); // Отключение клапана продукта
+
 			if (cntCHIM < 0) {
 				// Запоминаем температуру, когда произошел стоп за вычетом 0.1 градуса.
 				autoPWM[-cntCHIM].temp = t - 0.1;
@@ -1272,10 +1297,10 @@ void Rectification(void)
 				ProcChimSR -= v; // Тогда увеличиваем ШИМ на число процентов в относительном выражении
 			}
 			if (ProcChimSR < minProcChimOtbSR) ProcChimSR = minProcChimOtbSR;
-
 			timer_sec1 = timeRestabKolonna; // Установка таймера стабилизации
 			MainStatus = PROC_T_WAIT; // Переходим в режим стабилизации
 			if (beepChangeState) myBeep(true);
+			break;
 		} else {
         		if (uptime_counter - secTempPrev > timeAutoIncCHIM) {
 				// Если температура не выросла более, чем за 10 минут, прибавим ШИМ на 5%
@@ -1289,7 +1314,8 @@ void Rectification(void)
 						ProcChimSR += (ProcChimSR*(-incrementCHIM))/100;
 					}
 					if (ProcChimSR>95) ProcChimSR=95;
-
+					topen = (float)(timeChimRectOtbSR)*(float)(ProcChimSR)/100;
+					startSrKlp(topen, (float)(timeChimRectOtbSR)-topen);
 				}
 				secTempPrev = uptime_counter;
 			}
@@ -1299,45 +1325,42 @@ void Rectification(void)
 			break;
 		}
 		// Температура в кубе превысила температуру при которой надо отбирать СР
-		MainStatus = PROC_HV;			// Переход к отбору хвостов
 		closeKlp(klp_sr); 			// Отключение клапана продукта
+		topen = (float)(timeChimRectOtbGlv)*90/100;
+		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
+		MainStatus = PROC_HV;			// Переход к отбору хвостов
 		if (beepChangeState) myBeep(true);
 
 
 	case PROC_HV:
 		// Отбор хвостовых фракций
-//		setPower(powerRect);	// мощность ректификации
-
-		topen = timeChimRectOtbGlv*90/100;
-		startGlvKlp(topen, timeChimRectOtbGlv-topen);
-
 		t = getCubeTemp();
 		if (t < tempEndRect) {
 			break;
 		}
 		// Температура достигла отметки окончания ректификации	
+		// Переход к окончанию процесса
+		setPower(0);		// Снятие мощности с тэна
+		closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
 		secTempPrev = uptime_counter;
-		MainStatus = PROC_WAITEND;			// Переход к окончанию процесса
+		MainStatus = PROC_WAITEND;			
 		if (beepChangeState) myBeep(true);
 
 	case PROC_WAITEND:
 		// Отключение нагрева, подача воды для охлаждения
-		setPower(0);		// Снятие мощности с тэна
-		closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
 		if (uptime_counter - secTempPrev > 180) {
-			MainStatus = PROC_END;
+			setPower(0);		// Снятие мощности с тэна
+			closeAllKlp();		// Закрытие всех клапанов.
 			SecondsEnd = uptime_counter;
+			sprintf(b, "Rectification complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
+			sendSMS(b);
+        		MainStatus = PROC_END;
 			if (beepChangeState) myBeep(true);
 		}
 		break;
 
 	case PROC_END:
 		// Окончание работы
-		setPower(0);		// Снятие мощности с тэна
-		closeAllKlp();		// Закрытие всех клапанов.
-		sprintf(b, "Rectification complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
-		sendSMS(b);
-
 		break;
 	}
 }
