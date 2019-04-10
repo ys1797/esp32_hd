@@ -1092,6 +1092,9 @@ void setStatus(int next)
 			} else if (MainStatus == PROC_T_WAIT) {
 				MainStatus = PROC_SR;
 			} else if (MainStatus == PROC_SR) {
+				closeKlp(klp_sr); 			// Отключение клапана продукта
+				topen = (float)(timeChimRectOtbGlv)*90/100;
+				startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
 				MainStatus = PROC_HV;
 			} else if (MainStatus == PROC_HV) {
 				setPower(0);		// Снятие мощности с тэна
