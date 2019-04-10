@@ -861,6 +861,7 @@ int param_setup(void)
 
 	v = cJSON_GetObjectItem(root, "timeAutoIncCHIM");
 	if (v) timeAutoIncCHIM = v->valueint;
+	if (timeAutoIncCHIM <= 0) timeAutoIncCHIM=600;
 
 	v = cJSON_GetObjectItem(root, "alarmMPX5010");
 	if (v) alarmMPX5010 = v->valueint;
@@ -1302,7 +1303,7 @@ void Rectification(void)
 			if (beepChangeState) myBeep(true);
 			break;
 		} else {
-        		if (uptime_counter - secTempPrev > timeAutoIncCHIM) {
+        		if (timeAutoIncCHIM>0 && (uptime_counter - secTempPrev) > timeAutoIncCHIM) {
 				// Если температура не выросла более, чем за 10 минут, прибавим ШИМ на 5%
 				if (ProcChimSR > minProcChimOtbSR) {
 					// Шим прибавляем только если не дошли до минимального
