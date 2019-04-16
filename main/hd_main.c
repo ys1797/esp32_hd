@@ -948,6 +948,13 @@ cJSON* getInformation(void)
 
 	if (MODE_RECTIFICATION == MainMode) {
 		// Режим ректификации
+		cJSON_AddItemToObject(ja, "rect_t_stab", cJSON_CreateNumber(tempStabSR));
+		cJSON_AddItemToObject(ja, "rect_p_shim", cJSON_CreateNumber(ProcChimSR));
+		snprintf(data, sizeof(data)-1, "%02d:%02d", CurrentTm.tm_hour, CurrentTm.tm_min);
+		if (MainStatus == PROC_STAB) {
+			snprintf(data, sizeof(data)-1, "%02d/%02.0f sec", uptime_counter-secTempPrev, fabs(timeStabKolonna));
+			cJSON_AddItemToObject(ja, "rect_time_stab", cJSON_CreateString(data));
+		}
 	}
 	return ja;
 }
@@ -1172,7 +1179,7 @@ void Rectification(void)
 		openKlp(klp_water);	// Открытие клапана воды
 		setPower(powerRect);	// Устанавливаем мощность ректификации
 		// Запоминаем температуру и время
-		tempTube20Prev = getTube20Temp();
+		tempStabSR = tempTube20Prev = getTube20Temp();
 		secTempPrev = uptime_counter;
 		MainStatus = PROC_STAB;
 		if (beepChangeState) myBeep(true);
@@ -1180,9 +1187,16 @@ void Rectification(void)
 	case PROC_STAB:
 		// Стабилизация колонны
 		t = getTube20Temp();
-		if (-1 == t) break;
+		if (-1 == t) {
+			ESP_LOGE(TAG, "Can't get cube or 20%% tube temperature!!");
+			break;
+		}
+
 		if (t < 70) {
 			// Колонна еще не прогрелась.
+#ifdef DEBUG
+			ESP_LOGI(TAG, "Cube or 20%% tube temperature less 70 dg.");
+#endif
 			break;
 		}
 		if (timeStabKolonna > 0) {
@@ -1190,6 +1204,10 @@ void Rectification(void)
 			if (fabs(t - tempTube20Prev) < 0.2) {
 				// Если текущая температура колонны равна температуре,
 				// запомненной ранее в пределах погрешности в 0.2 градуса C
+#ifdef DEBUG
+			ESP_LOGI(TAG, "Stabillization %d of %02.0f sec.", uptime_counter-secTempPrev, fabs(timeStabKolonna));
+#endif
+
 				if (uptime_counter-secTempPrev<timeStabKolonna) {
 					// С момента последнего измерения прошло меньше заданого
 					// времени.
@@ -1199,14 +1217,21 @@ void Rectification(void)
 				// cекунд чем нужно, считаем, что температура в колонне
 				// стабилизировалась и переходим к отбору голов
 			} else {
+#ifdef DEBUG
+			ESP_LOGI(TAG, "Stab. temp. changed from %0.2f to %0.2f. Reseting timer.", tempTube20Prev, t);
+#endif
+
 				// Рассогласование температуры запоминаем
 				// температуру и время
-				tempTube20Prev = t;
+				tempStabSR = tempTube20Prev = t;
 				secTempPrev = uptime_counter;
 				break;
 			}
 		} else {
 			// Абсолютное значение времени
+#ifdef DEBUG
+			ESP_LOGI(TAG, "Stabillization %d of %0.0f.", uptime_counter-secTempPrev, fabs(timeStabKolonna));
+#endif
 			if (uptime_counter-secTempPrev < fabs(timeStabKolonna)) {
 				// Если с момента начала стабилизации прошло меньше
 				// заданного количества секунд - продолжаем ждать
@@ -1224,6 +1249,10 @@ void Rectification(void)
 		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
 
 		tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
+#ifdef DEBUG
+			ESP_LOGI(TAG, "Switch to `glv` stage");
+#endif
+
 
 	case PROC_GLV:
 		// Отбор головных фракций
@@ -1238,6 +1267,10 @@ void Rectification(void)
 		ProcChimSR = beginProcChimOtbSR;	// Устанавливаем стартовый % отбора товарного продукта
 		tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
 		if (beepChangeState) myBeep(true);
+#ifdef DEBUG
+			ESP_LOGI(TAG, "Switch to `T wait` stage");
+#endif
+
 
 	case PROC_T_WAIT:
 		// Ожидание стабилизации температуры
@@ -1517,10 +1550,89 @@ void startSrKlp(float topen, float tclose)
 	startKlpPwm(klp_sr, topen, tclose);
 }
 
+static struct {
+    struct arg_str *value;
+    struct arg_end *end;
+} set_args;
+
+static int set_ct(int argc, char **argv)
+{
+	int nerrors = arg_parse(argc, argv, (void **) &set_args);
+	if (nerrors != 0) {
+		arg_print_errors(stderr, set_args.end, argv[0]);
+		return 1;
+	}
+	const char *values = set_args.value->sval[0];
+	testCubeTemp = atof(values);
+	emulate_devices = 1;
+	ESP_LOGI(TAG, "New Cube temp: %f\n", testCubeTemp);
+	return 0;
+}
+
+const esp_console_cmd_t set_ct_cmd = {
+        .command = "t",
+        .help = "Emulate cube temp",
+        .hint = NULL,
+        .func = &set_ct,
+        .argtable = &set_args
+};
+
+/* 'version' command */
+static int get_version(int argc, char **argv)
+{
+	esp_chip_info_t info;
+	esp_chip_info(&info);
+	printf("IDF Version:%s\r\n", esp_get_idf_version());
+	printf("Chip info:\r\n");
+	printf("\tmodel:%s\r\n", info.model == CHIP_ESP32 ? "ESP32" : "Unknow");
+	printf("\tcores:%d\r\n", info.cores);
+	printf("\tfeature:%s%s%s%s%d%s\r\n",
+           info.features & CHIP_FEATURE_WIFI_BGN ? "/802.11bgn" : "",
+           info.features & CHIP_FEATURE_BLE ? "/BLE" : "",
+           info.features & CHIP_FEATURE_BT ? "/BT" : "",
+           info.features & CHIP_FEATURE_EMB_FLASH ? "/Embedded-Flash:" : "/External-Flash:",
+           spi_flash_get_chip_size() / (1024 * 1024), " MB");
+	printf("\trevision number:%d\r\n", info.revision);
+	return 0;
+}
+
+static void register_version()
+{
+    const esp_console_cmd_t cmd = {
+        .command = "version",
+        .help = "Get version of chip and SDK",
+        .hint = NULL,
+        .func = &get_version,
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
+}
+
+/** 'restart' command restarts the program */
+
+static int restart(int argc, char **argv)
+{
+	ESP_LOGI(TAG, "Restarting");
+	esp_restart();
+}
+
+static void register_restart()
+{
+	const esp_console_cmd_t cmd = {
+		.command = "restart",
+		.help = "Software reset of the chip",
+		.hint = NULL,
+		.func = &restart,
+	};
+	ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
+}
+
+
 
 void console_task(void *arg)
 {
 	const char* prompt = LOG_COLOR_I "hd> " LOG_RESET_COLOR;
+
+
 
 	/* Выключаем буферизацию stdin и stdout */
 	setvbuf(stdin, NULL, _IONBF, 0);
@@ -1545,12 +1657,18 @@ void console_task(void *arg)
 	linenoiseHistorySetMaxLen(100);
 	linenoiseHistoryLoad(HISTORY_PATH);
 	/* Register commands */
-	esp_console_register_help_command();	
+	esp_console_register_help_command();
 
 	int probe_status = linenoiseProbe();
 	if (probe_status) {
 	        linenoiseSetDumbMode(1);
 	}
+
+	set_args.value = arg_str1("v", "value", "<value>", "value to be stored");
+	set_args.end = arg_end(2);
+	ESP_ERROR_CHECK( esp_console_cmd_register(&set_ct_cmd) );
+	register_version();
+	register_restart();
 
 	while (true) {
 		char* line;
@@ -1613,6 +1731,7 @@ void app_main(void)
 	TIMERG0.wdt_feed=1;
 	TIMERG0.wdt_wprotect=0;
 
+	/* Запуск консоли */
 	xTaskCreate(&console_task, "console_task", 8192, NULL, 1, NULL);
 
 	/* Получаем конфигурацию сетевого доступа */
