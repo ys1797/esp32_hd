@@ -28,6 +28,8 @@ License (MIT license):
 
 #define TAG "hd_esp32"
 
+#define DEBUG				// debug mode
+
 #define MAX_OBJ_NAME	32
 #define MAX_KLP		4		// Максимальное число клапанов = 4
 
