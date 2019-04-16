@@ -98,6 +98,9 @@ typedef struct {
 // Gpio interface
 extern unsigned char ow_rom_codes[MAX_DS][9];
 extern uint8_t ow_devices;	// count of devices on the bus
+extern uint8_t emulate_devices;	// Режим эмуляции температуры
+extern double testCubeTemp;	// Тестовое значение кубовой температуры
+
 
 // i2c->w1 gate interface
 extern uint8_t ds18_devices;	// Количество датчиков ds18b20

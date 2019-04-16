@@ -87,7 +87,8 @@ uint8_t maxBitResolution = 9;
 static int ds_gpio;
 unsigned char ow_rom_codes[MAX_DS][9];
 uint8_t ow_devices;	// count of devices on the bus
-
+uint8_t emulate_devices=0;	// Режим эмуляции температуры
+double testCubeTemp = 20;	// Тестовое значение кубовой температуры
 
 static unsigned char ROM_NO[8];
 static uint8_t LastDiscrepancy;
@@ -1185,7 +1186,10 @@ void ds_task(void *arg)
 }
 
 // Получить температуру в кубе
+
 double getCubeTemp(void) {
+	if (emulate_devices) return testCubeTemp; // Эмуляция
+
 	for (int i=0; i<MAX_DS; i++) {
 		DS18 *d = &ds[i];
 		if (!d->is_connected) continue;
@@ -1202,5 +1206,6 @@ double getTube20Temp(void)
 		if (!d->is_connected) continue;
 		if (DS_TUBE20 == d->type) return d->Ce+d->corr;
 	}
-	return -1;
+	// Если датчик не найден - возвращаем кубовую температуру
+	return getCubeTemp();
 }
