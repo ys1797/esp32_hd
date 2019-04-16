@@ -1182,6 +1182,9 @@ void Rectification(void)
 		tempStabSR = tempTube20Prev = getTube20Temp();
 		secTempPrev = uptime_counter;
 		MainStatus = PROC_STAB;
+#ifdef DEBUG
+		ESP_LOGI(TAG, "Switch state to stabilization.");
+#endif
 		if (beepChangeState) myBeep(true);
 
 	case PROC_STAB:
@@ -1308,6 +1311,10 @@ void Rectification(void)
 		secTempPrev = uptime_counter;	// Запомним время, когда стабилизировалась температура
 		MainStatus = PROC_SR;		// Переход к отбору продукта
 		if (beepChangeState) myBeep(true);
+#ifdef DEBUG
+		ESP_LOGI(TAG, "Switch state to SR.");
+#endif
+
 
 	case PROC_SR:
 		// Отбор СР
@@ -1382,6 +1389,10 @@ void Rectification(void)
 		secTempPrev = uptime_counter;
 		MainStatus = PROC_WAITEND;			
 		if (beepChangeState) myBeep(true);
+#ifdef DEBUG
+		ESP_LOGI(TAG, "Switch state to wait End of Rectification.");
+#endif
+
 
 	case PROC_WAITEND:
 		// Отключение нагрева, подача воды для охлаждения
@@ -1393,6 +1404,10 @@ void Rectification(void)
 			sendSMS(b);
         		MainStatus = PROC_END;
 			if (beepChangeState) myBeep(true);
+#ifdef DEBUG
+		ESP_LOGI(TAG, b);
+#endif
+
 		}
 		break;
 
