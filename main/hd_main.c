@@ -183,7 +183,7 @@ autopwm autoPWM[COUNT_PWM] = {
 	{0,0}
 };
 
-int16_t timer_sec1=0;		// Таймер для отсчета секунд 1
+int16_t rect_timer1=0;		// Таймер для отсчета секунд 1
 int16_t timer_sec2=0;		// Таймер для отсчета секунд 2
 int16_t timer_sec3=0;		// Таймер для отсчета секунд 3
 int32_t SecondsEnd;		// Время окончания процесса 
@@ -629,8 +629,8 @@ void IRAM_ATTR timer0_group0_isr(void *para)
 		if (tic_counter >= 1000) {
 			tic_counter=0;
 			uptime_counter++;
-			if (timer_sec1>0) timer_sec1--;	// Таймер для отсчета секунд 1
-			else timer_sec1=0;
+			if (rect_timer1>0) rect_timer1--; // Таймер для отсчета секунд 1
+			else rect_timer1=0;
 			if (timer_sec2>0) timer_sec2--;	// Таймер для отсчета секунд 2
 			else timer_sec2=0;
 			if (timer_sec3>0) timer_sec3--;	// Таймер для отсчета секунд 3
@@ -840,6 +840,7 @@ int param_setup(void)
 
 	v = cJSON_GetObjectItem(root, "timeRestabKolonna");
 	if (v) timeRestabKolonna = v->valueint;
+	if (timeRestabKolonna <= 0) timeRestabKolonna = 1800;
 
 	v = cJSON_GetObjectItem(root, "pShim");
 	if (v) pShim = v->valueint;
@@ -948,13 +949,21 @@ cJSON* getInformation(void)
 
 	if (MODE_RECTIFICATION == MainMode) {
 		// Режим ректификации
-		cJSON_AddItemToObject(ja, "rect_t_stab", cJSON_CreateNumber(tempStabSR));
 		cJSON_AddItemToObject(ja, "rect_p_shim", cJSON_CreateNumber(ProcChimSR));
-		snprintf(data, sizeof(data)-1, "%02d:%02d", CurrentTm.tm_hour, CurrentTm.tm_min);
 		if (MainStatus == PROC_STAB) {
 			snprintf(data, sizeof(data)-1, "%02d/%02.0f sec", uptime_counter-secTempPrev, fabs(timeStabKolonna));
 			cJSON_AddItemToObject(ja, "rect_time_stab", cJSON_CreateString(data));
 		}
+		if (MainStatus == PROC_T_WAIT) {
+			snprintf(data, sizeof(data)-1, "%02d sec", rect_timer1);
+			cJSON_AddItemToObject(ja, "rect_timer1", cJSON_CreateString(data));
+			snprintf(data, sizeof(data)-1, "%02.1f <-- %02.1f C", tempStabSR, getTube20Temp());
+			cJSON_AddItemToObject(ja, "rect_t_stab", cJSON_CreateString(data));
+		} else {
+			snprintf(data, sizeof(data)-1, "%02.1f C", tempStabSR);
+			cJSON_AddItemToObject(ja, "rect_t_stab", cJSON_CreateString(data));
+		}
+
 	}
 	return ja;
 }
@@ -1279,11 +1288,15 @@ void Rectification(void)
 		// Ожидание стабилизации температуры
 		if (tempStabSR <= 0) tempStabSR =28.5;
 
-		if (0 == timer_sec1 && timeRestabKolonna > 0) {
+		if (0 == rect_timer1 && timeRestabKolonna > 0) {
 			// Если колонна слишком долго находится в режиме стопа,
 			// то температуру стабилизации примем за новую
 			tempStabSR = getTube20Temp();
 			if (beepChangeState) myBeep(true);
+#ifdef DEBUG
+			ESP_LOGI(TAG, "New temperature for stabilization: %0.2f", tempStabSR);
+#endif
+
 		}
 
 		t = getCubeTemp();
@@ -1312,7 +1325,7 @@ void Rectification(void)
 		MainStatus = PROC_SR;		// Переход к отбору продукта
 		if (beepChangeState) myBeep(true);
 #ifdef DEBUG
-		ESP_LOGI(TAG, "Switch state to SR.");
+		ESP_LOGI(TAG, "Switch state to SR. Temperature: %0.2f", tempStabSR);
 #endif
 
 
@@ -1341,9 +1354,12 @@ void Rectification(void)
 				ProcChimSR -= v; // Тогда увеличиваем ШИМ на число процентов в относительном выражении
 			}
 			if (ProcChimSR < minProcChimOtbSR) ProcChimSR = minProcChimOtbSR;
-			timer_sec1 = timeRestabKolonna; // Установка таймера стабилизации
+			rect_timer1 = timeRestabKolonna; // Установка таймера стабилизации
 			MainStatus = PROC_T_WAIT; // Переходим в режим стабилизации
 			if (beepChangeState) myBeep(true);
+#ifdef DEBUG
+			ESP_LOGI(TAG, "Switch state to temperature re-stabilization.");
+#endif
 			break;
 		} else {
         		if (timeAutoIncCHIM>0 && (uptime_counter - secTempPrev) > timeAutoIncCHIM) {
@@ -1405,7 +1421,7 @@ void Rectification(void)
         		MainStatus = PROC_END;
 			if (beepChangeState) myBeep(true);
 #ifdef DEBUG
-		ESP_LOGI(TAG, b);
+		ESP_LOGI(TAG, "%s", b);
 #endif
 
 		}
