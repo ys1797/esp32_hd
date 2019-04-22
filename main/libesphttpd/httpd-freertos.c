@@ -4,24 +4,15 @@ ESP8266 web server - platform-dependent routines, FreeRTOS version
 
 Thanks to my collague at Espressif for writing the foundations of this code.
 */
-#ifdef FREERTOS
-
-
 #include "esp_platform.h"
 #include "httpd.h"
 #include "platform.h"
 #include "httpd-platform.h"
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
-
-#ifdef ESP32
 #include "lwip/sockets.h"
-#else
-#include "lwip/lwip/sockets.h"
-#endif
 
 static int httpPort;
 static int httpMaxConnCt;
@@ -279,12 +270,5 @@ void httpdPlatTimerDelete(HttpdPlatTimerHandle timer) {
 void ICACHE_FLASH_ATTR httpdPlatInit(int port, int maxConnCt) {
 	httpPort=port;
 	httpMaxConnCt=maxConnCt;
-#ifdef ESP32
 	xTaskCreate(platHttpServerTask, (const char *)"esphttpd", HTTPD_STACKSIZE, NULL, 4, NULL);
-#else
-	xTaskCreate(platHttpServerTask, (const signed char *)"esphttpd", HTTPD_STACKSIZE, NULL, 4, NULL);
-#endif
 }
-
-
-#endif

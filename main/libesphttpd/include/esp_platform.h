@@ -3,11 +3,9 @@
 // ToDo: Figure out better name
 
 
-#define FREERTOS 1
-#define ESP32 1
 #include "sdkconfig.h"
-#define HTTPD_MAX_CONNECTIONS CONFIG_ESPHTTPD_MAX_CONNECTIONS
-#define HTTPD_STACKSIZE CONFIG_ESPHTTPD_STACK_SIZE
+#define HTTPD_MAX_CONNECTIONS 4
+#define HTTPD_STACKSIZE 4096
 #include "stdint.h"
 typedef uint8_t uint8;
 typedef uint16_t uint16;

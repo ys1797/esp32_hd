@@ -6,12 +6,5 @@
 # lib(subdirectory_name).a in the build directory. This behaviour is entirely configurable,
 # please read the SDK documents if you need to do this.
 #
-
-COMPONENT_SRCDIRS := core espfs util
-COMPONENT_ADD_INCLUDEDIRS := core espfs util include
-COMPONENT_ADD_LDFLAGS := -llibesphttpd
-
-COMPONENT_EXTRA_CLEAN := mkespfsimage/*
-
-CFLAGS += -DFREERTOS
+COMPONENT_ADD_INCLUDEDIRS := include
 

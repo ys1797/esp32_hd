@@ -18,9 +18,7 @@ Some flash handling cgi routines. Used for updating the ESPFS/OTA image.
 //#include <osapi.h>
 #include "cgiflash.h"
 #include "httpd-platform.h"
-#if ESP32
 #include "esp32_flash.h"
-#endif
 
 #ifndef UPGRADE_FLAG_FINISH
 #define UPGRADE_FLAG_FINISH     0x02
@@ -29,18 +27,11 @@ Some flash handling cgi routines. Used for updating the ESPFS/OTA image.
 // Check that the header of the firmware blob looks like actual firmware...
 static int ICACHE_FLASH_ATTR checkBinHeader(void *buf) {
 	uint8_t *cd = (uint8_t *)buf;
-#if ESP32
 	printf("checkBinHeader: %x %x %x\n", cd[0], ((uint16_t *)buf)[3], ((uint32_t *)buf)[0x6]);
 	if (cd[0] != 0xE9) return 0;
 	if (((uint16_t *)buf)[3] != 0x4008) return 0;
 	uint32_t a=((uint32_t *)buf)[0x6];
 	if (a!=0 && (a<=0x3F000000 || a>0x40400000)) return 0;
-#else
-	if (cd[0] != 0xEA) return 0;
-	if (cd[1] != 4 || cd[2] > 3 || cd[3] > 0x40) return 0;
-	if (((uint16_t *)buf)[3] != 0x4010) return 0;
-	if (((uint32_t *)buf)[2] != 0) return 0;
-#endif
 	return 1;
 }
 
@@ -56,12 +47,8 @@ int ICACHE_FLASH_ATTR cgiGetFirmwareNext(HttpdConnData *connData) {
 		//Connection aborted. Clean up.
 		return HTTPD_CGI_DONE;
 	}
-#ifdef ESP32
 	//Doesn't matter, we have a MMU to remap memory, so we only have one firmware image.
 	uint8 id = 0;
-#else
-	uint8 id = system_upgrade_userbin_check();
-#endif
 	httpdStartResponse(connData, 200);
 	httpdHeader(connData, "Content-Type", "text/plain");
 	httpdHeader(connData, "Content-Length", "9");
@@ -81,12 +68,7 @@ int ICACHE_FLASH_ATTR cgiGetFirmwareNext(HttpdConnData *connData) {
 //have to buffer some data because the post buffer may be misaligned, we 
 //write SPI data in pages. The page size is a software thing, not
 //a hardware one.
-#ifdef ESP32
 #define PAGELEN 4096
-#else
-#define PAGELEN 64
-#endif
-
 #define FLST_START 0
 #define FLST_WRITE 1
 #define FLST_SKIP 2
@@ -150,60 +132,10 @@ int ICACHE_FLASH_ATTR cgiUploadFirmware(HttpdConnData *connData) {
 		if (state->state==FLST_START) {
 			//First call. Assume the header of whatever we're uploading already is in the POST buffer.
 			if (def->type==CGIFLASH_TYPE_FW && memcmp(data, "EHUG", 4)==0) {
-#ifndef ESP32
-				//Type is combined flash1/flash2 file
-				OtaHeader *h=(OtaHeader*)data;
-				strncpy(buff, h->tag, 27);
-				buff[27]=0;
-				if (strcmp(buff, def->tagName)!=0) {
-					httpd_printf("OTA tag mismatch! Current=`%s` uploaded=`%s`.\n",
-										def->tagName, buff);
-					len=httpdFindArg(connData->getArgs, "force", buff, sizeof(buff));
-					if (len!=-1 && atoi(buff)) {
-						httpd_printf("Forcing firmware flash.\n");
-					} else {
-						state->err="Firmware not intended for this device!\n";
-						state->state=FLST_ERROR;
-					}
-				}
-				if (state->state!=FLST_ERROR && connData->post->len > def->fwSize*2+sizeof(OtaHeader)) {
-					state->err="Firmware image too large";
-					state->state=FLST_ERROR;
-				}
-				if (state->state!=FLST_ERROR) {
-					//Flash header seems okay.
-					dataLen-=sizeof(OtaHeader); //skip header when parsing data
-					data+=sizeof(OtaHeader);
-					if (system_upgrade_userbin_check()==1) {
-						httpd_printf("Flashing user1.bin from ota image\n");
-						state->len=h->len1;
-						state->skip=h->len2;
-						state->state=FLST_WRITE;
-						state->address=def->fw1Pos;
-					} else {
-						httpd_printf("Flashing user2.bin from ota image\n");
-						state->len=h->len2;
-						state->skip=h->len1;
-						state->state=FLST_SKIP;
-						state->address=def->fw2Pos;
-					}
-				}
-#else
 				state->err="Combined flash images are unneeded/unsupported on ESP32!";
 				state->state=FLST_ERROR;
 				httpd_printf("Combined flash image not supported on ESP32!\n");
-#endif
 			} else if (def->type==CGIFLASH_TYPE_FW && checkBinHeader(connData->post->buff)) {
-#if !ESP32
-				if (connData->post->len > def->fwSize) {
-					state->err="Firmware image too large";
-					state->state=FLST_ERROR;
-				} else {
-					state->len=connData->post->len;
-					state->address=def->fw1Pos;
-					state->state=FLST_WRITE;
-				}
-#else
 				uint32_t offset, size;
 				esp32flashGetUpdateMem(&offset, &size);
 //				printf("Writing to partition @ %x, size %d\n", offset, size);
@@ -215,7 +147,6 @@ int ICACHE_FLASH_ATTR cgiUploadFirmware(HttpdConnData *connData) {
 					state->address=offset;
 					state->state=FLST_WRITE;
 				}
-#endif
 			} else if (def->type==CGIFLASH_TYPE_ESPFS && checkEspfsHeader(connData->post->buff)) {
 				if (connData->post->len > def->fwSize) {
 					state->err="Firmware image too large";
@@ -311,12 +242,7 @@ int ICACHE_FLASH_ATTR cgiUploadFirmware(HttpdConnData *connData) {
 static HttpdPlatTimerHandle resetTimer;
 
 static void ICACHE_FLASH_ATTR resetTimerCb(void *arg) {
-#if !ESP32
-	system_upgrade_flag_set(UPGRADE_FLAG_FINISH);
-	system_upgrade_reboot();
-#else
 	esp32flashRebootIntoOta();
-#endif
 }
 
 // Handle request to reboot into the new firmware
