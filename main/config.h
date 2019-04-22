@@ -97,4 +97,9 @@ typedef struct  {
 
 extern vaiable_list DEFL_PARAMS[];	// Пераметры
 
-int param_default(void);	// Сброс параметров в значение по умолчанию
+int param_default(void);		// Сброс параметров в значение по умолчанию
+int param_load(void);			/* Загрузка и установка параметров работы */
+char* getStringParam(char *name);	/* Получение текстовой переменной */
+int  getIntParam(char *name);		/* Получение переменной типа int */
+float getFloatParam(char *name);	/* Получение переменной типа float*/
+

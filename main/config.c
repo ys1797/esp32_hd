@@ -20,6 +20,11 @@ License (MIT license):
   THE SOFTWARE.
 */
 
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <dirent.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -73,6 +78,7 @@ int param_default(void)
 	if (f) {
 		cJSON *ja = cJSON_CreateObject();
 		for (v = DEFL_PARAMS; v && v->name; v++) {
+			v->val = strdup(v->default_val);
 			switch (v->type) {
 			case VARIABLE_CHECKBOX:
 				i = atoi(v->default_val);
@@ -100,3 +106,98 @@ int param_default(void)
 	return 0;
 }
 
+/* Загрузка и установка параметров работы */
+int param_load(void)
+{
+	struct stat st;
+	char *buff = NULL;
+	size_t size;
+	FILE *f;
+	vaiable_list *v;
+	cJSON *cj;
+	int  i;
+	double d;
+
+       	if (stat(RECT_CONFIGURATION, &st) != 0) {
+		// Файл не найден - заполняем значениями по умолчанию
+		return param_default();
+	}
+	f = fopen(RECT_CONFIGURATION, "r");
+	buff = malloc(st.st_size+2);
+	if (!buff) {
+		fclose(f);
+		return -2;
+	}
+	size = fread(buff, 1, st.st_size, f);
+	buff[size]=0;
+	fclose(f);
+
+	cJSON *root = cJSON_Parse(buff);
+	free(buff);
+	if (!root) return -3;
+
+
+	for (v = DEFL_PARAMS; v && v->name; v++) {
+		cj = cJSON_GetObjectItem(root, v->name);
+		if (!cj) continue; // TODO - need default value
+		v->val = strdup(cj->valuestring);
+
+		switch (v->type) {
+		case VARIABLE_CHECKBOX:
+			i = atoi(v->val);
+			break;
+		case VARIABLE_INT:
+			i = atoi(v->val);
+			break;
+		case VARIABLE_FLOAT:
+			d = atof(v->val);
+			break;
+		default:
+			break;
+		}
+	}
+
+	return 0;
+}
+
+
+/* Получение текстовой переменной */
+char *getStringParam(char *name)
+{
+	vaiable_list *v;
+	for (v = DEFL_PARAMS; v && v->name; v++) {
+		if (VARIABLE_STRING == v->type && !strcasecmp(name, v->name)) {
+			if (NULL == v->val) return v->default_val;
+			return v->val;
+		}
+	}
+	return "";
+}
+
+/* Получение переменной типа int */
+int  getIntParam(char *name)
+{
+	vaiable_list *v;
+	for (v = DEFL_PARAMS; v && v->name; v++) {
+		if (VARIABLE_INT == v->type && !strcasecmp(name, v->name)) {
+			if (NULL == v->val) return atoi(v->default_val);
+			return atoi(v->val);
+		}
+	}
+
+	return 0;
+}
+
+/* Получение переменной типа float*/
+float getFloatParam(char *name)
+{
+	vaiable_list *v;
+	for (v = DEFL_PARAMS; v && v->name; v++) {
+		if (VARIABLE_FLOAT == v->type && !strcasecmp(name, v->name)) {
+			if (NULL == v->val) return atof(v->default_val);
+			return atof(v->val);
+		}
+	}
+
+	return 0;
+}
