@@ -713,50 +713,6 @@ void IRAM_ATTR gpio_isr_handler(void* arg)
 	GPIO.status_w1tc = intr_st;
 } 
 
-/* Сброс параметров в значение по умолчанию */
-int param_default(void)
-{
-	FILE *f = fopen(RECT_CONFIGURATION, "w");
-	if (f) {
-		cJSON *ja = cJSON_CreateObject();
-		cJSON_AddItemToObject(ja, "maxPower", cJSON_CreateNumber(2000));
-		cJSON_AddItemToObject(ja, "ustPowerReg", cJSON_CreateNumber(900));
-		cJSON_AddItemToObject(ja, "tempEndRectRazgon", cJSON_CreateNumber(83.0));
-		cJSON_AddItemToObject(ja, "powerRect", cJSON_CreateNumber(1000));
-		cJSON_AddItemToObject(ja, "tEndRectOtbGlv", cJSON_CreateNumber(85.4));
-		cJSON_AddItemToObject(ja, "timeChimRectOtbGlv", cJSON_CreateNumber(20));
-		cJSON_AddItemToObject(ja, "procChimOtbGlv", cJSON_CreateNumber(5));
-		cJSON_AddItemToObject(ja, "minProcChimOtbSR", cJSON_CreateNumber(20));
-		cJSON_AddItemToObject(ja, "beginProcChimOtbSR", cJSON_CreateNumber(40));
-		cJSON_AddItemToObject(ja, "timeChimRectOtbSR", cJSON_CreateNumber(10));
-		cJSON_AddItemToObject(ja, "tempDeltaRect", cJSON_CreateNumber(0.3));
-		cJSON_AddItemToObject(ja, "tempEndRectOtbSR", cJSON_CreateNumber(96.5));
-		cJSON_AddItemToObject(ja, "tempEndRect", cJSON_CreateNumber(99.5));
-		cJSON_AddItemToObject(ja, "p_MPX5010", cJSON_CreateNumber(0));
-		cJSON_AddItemToObject(ja, "timeStabKolonna", cJSON_CreateNumber(900));
-		cJSON_AddItemToObject(ja, "timeRestabKolonna", cJSON_CreateNumber(1800));
-		cJSON_AddItemToObject(ja, "pShim", cJSON_CreateNumber(90));
-		cJSON_AddItemToObject(ja, "klpSilentNode", cJSON_CreateBool(true));
-		cJSON_AddItemToObject(ja, "urovenProvodimostSR", cJSON_CreateNumber(0));
-		cJSON_AddItemToObject(ja, "cntCHIM", cJSON_CreateNumber(-4));
-		cJSON_AddItemToObject(ja, "decrementCHIM", cJSON_CreateNumber(10));
-		cJSON_AddItemToObject(ja, "incrementCHIM", cJSON_CreateNumber(5));
-		cJSON_AddItemToObject(ja, "timeAutoIncCHIM", cJSON_CreateNumber(600));
-		cJSON_AddItemToObject(ja, "alarmMPX5010", cJSON_CreateNumber(0));
-		cJSON_AddItemToObject(ja, "beepChangeState", cJSON_CreateBool(true));
-
-		cJSON_AddItemToObject(ja, "powerDistil", cJSON_CreateNumber(1000));
-		cJSON_AddItemToObject(ja, "tempEndDistil", cJSON_CreateNumber(99.5));
-
-		char *r=cJSON_Print(ja);
-		fprintf(f, "%s", r);
-		if (r) free(r);
-		cJSON_Delete(ja);
-		fclose(f);
-	}
-	return 0;
-}
-
 /* Загрузка и установка параметров работы */
 int param_setup(void)
 {
