@@ -120,21 +120,6 @@ struct PZEMCommand {
 
 #define HMAX (1<<LEDC_TIMER_10_BIT)-1
 
-// Тип переменной
-enum variable_type {
-        VARIABLE_CHECKBOX,
-        VARIABLE_STRING,
-        VARIABLE_INT,
-	VARIABLE_FLOAT
-};
-
-
-typedef struct  {
-        char *name;
-        enum variable_type type;
-        int min;
-        int max;
-} vaiable_list;
 
 // Определение для работы с клапанами
 typedef struct  {
