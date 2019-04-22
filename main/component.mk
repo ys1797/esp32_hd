@@ -7,4 +7,4 @@
 # please read the ESP-IDF documents if you need to do this.
 #
 COMPONENT_SRCDIRS := . libesphttpd esp-request md5
-COMPONENT_ADD_INCLUDEDIRS := libesphttpd esp-request md5
+COMPONENT_ADD_INCLUDEDIRS := libesphttpd/include esp-request/include md5
