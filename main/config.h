@@ -76,3 +76,22 @@ License (MIT license):
 #define PIN_NUM_CLK  18
 #define PIN_NUM_DC   21
 #define PIN_NUM_RST  25
+
+// Тип переменной
+enum variable_type {
+        VARIABLE_CHECKBOX,
+        VARIABLE_STRING,
+        VARIABLE_INT,
+	VARIABLE_FLOAT
+};
+
+// Определение переменной
+typedef struct  {
+        char *name;
+        enum variable_type type;
+        int min;
+        int max;
+	char *default_val;
+} vaiable_list;
+
+extern vaiable_list DEFL_PARAMS[];	// Пераметры
