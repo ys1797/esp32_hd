@@ -98,41 +98,6 @@ wwwPage WIFI_PAGE[] = {
 	{NULL}
 };
 
-vaiable_list DEFL_PARAMS[] =
-{
-	{"maxPower", VARIABLE_INT, 0, 15000},
-	{"ustPowerReg", VARIABLE_INT, 0, 15000},
-	{"tempEndRectRazgon", VARIABLE_FLOAT, 0, 120},
-	{"powerRect", VARIABLE_INT, 0, 15000},
-	{"tEndRectOtbGlv", VARIABLE_FLOAT, 0, 120},
-	{"timeChimRectOtbGlv", VARIABLE_INT, 0, 10000},
-	{"procChimOtbGlv", VARIABLE_INT, 0, 101},
-	{"minProcChimOtbSR", VARIABLE_INT, 0, 101},
-	{"tempStabSR", VARIABLE_FLOAT, 0, 120},
-	{"beginProcChimOtbSR", VARIABLE_INT, 0, 100},
-	{"timeChimRectOtbSR", VARIABLE_INT, 0, 1500},
-	{"tempDeltaRect", VARIABLE_FLOAT, 0, 120},
-	{"tempEndRectOtbSR", VARIABLE_FLOAT, 0, 120},
-	{"tempEndRect", VARIABLE_FLOAT, 0, 120},
-	{"p_MPX5010", VARIABLE_INT, 0, 100},
-	{"timeStabKolonna", VARIABLE_INT, 0, 3500},
-	{"timeRestabKolonna", VARIABLE_INT, 0, 3500},
-	{"pShim", VARIABLE_INT, 0, 101},
-	{"klpSilentNode", VARIABLE_CHECKBOX, 0, 1},
-	{"urovenProvodimostSR", VARIABLE_INT, 0, 1000},
-	{"cntCHIM", VARIABLE_INT, -100, 100},
-	{"decrementCHIM", VARIABLE_INT, 0, 100},
-	{"incrementCHIM", VARIABLE_INT, 0, 100},
-	{"timeAutoIncCHIM", VARIABLE_INT, 0, 1000},
-	{"alarmMPX5010", VARIABLE_INT, 0, 100},
-	{"beepChangeState", VARIABLE_CHECKBOX, 0, 1},
-
-	{"powerDistil", VARIABLE_INT, 0, 15000},
-	{"tempEndDistil", VARIABLE_FLOAT, 0, 120},
-
-	{NULL}
-};
-
 static void json_ok(HttpdConnData *c)
 {
 	httpdSend(c, "{\"err\":\"0\",\"msg\":\"OK\"}", 22);
