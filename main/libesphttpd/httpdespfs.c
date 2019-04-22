@@ -16,12 +16,6 @@ Connector to let httpd use the espfs filesystem to serve the files in it.
 #include "esp_spiffs.h"
 #include <stdio.h>
 
-
-// The static files marked with FLAG_GZIP are compressed and will be served with GZIP compression.
-// If the client does not advertise that he accepts GZIP send following warning message (telnet users for e.g.)
-static const char *gzipNonSupportedMessage = "HTTP/1.0 501 Not implemented\r\nServer: esp8266-httpd/"HTTPDVER"\r\nConnection: close\r\nContent-Type: text/plain\r\nContent-Length: 52\r\n\r\nYour browser does not accept gzip-compressed data.\r\n";
-
-
 //This is a catch-all cgi function. It takes the url passed to it, looks up the corresponding
 //path in the filesystem and if it exists, passes the file through. This simulates what a normal
 //webserver would do with static files.
@@ -29,8 +23,6 @@ int ICACHE_FLASH_ATTR cgiEspFsHook(HttpdConnData *connData) {
 	FILE *file=connData->cgiData;
 	int len;
 	char buff[1024];
-	char acceptEncodingBuffer[64];
-//	int isGzip;
 	
 	if (connData->conn==NULL) {
 		//Connection aborted. Clean up.

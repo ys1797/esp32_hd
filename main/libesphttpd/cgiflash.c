@@ -102,8 +102,6 @@ typedef struct __attribute__((packed)) {
 int ICACHE_FLASH_ATTR cgiUploadFirmware(HttpdConnData *connData) {
 	CgiUploadFlashDef *def=(CgiUploadFlashDef*)connData->cgiArg;
 	UploadState *state=(UploadState *)connData->cgiData;
-	int len;
-	char buff[128];
 
 	if (connData->conn==NULL) {
 		//Connection aborted. Clean up.

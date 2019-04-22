@@ -7,11 +7,11 @@ Broken out because esp-idf is expected to get better routines for this.
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "rom/cache.h"
-#include "rom/ets_sys.h"
-#include "rom/spi_flash.h"
-#include "rom/crc.h"
-#include "rom/rtc.h"
+#include "esp32/rom/cache.h"
+#include "esp32/rom/ets_sys.h"
+#include "esp32/rom/spi_flash.h"
+#include "esp32/rom/crc.h"
+#include "esp32/rom/rtc.h"
 #include "esp_partition.h"
 
 /*   Size of 32 bytes is friendly to flash encryption */
@@ -67,7 +67,6 @@ int esp32flashGetUpdateMem(uint32_t *loc, uint32_t *size) {
 
 int esp32flashSetOtaAsCurrentImage() {
 	const esp_partition_t* otaselpart=esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_OTA, NULL);
-	int selectedPart=getOtaSel();
 	int selSect=-1;
 	ota_select sa1,sa2, newsa;
 	spi_flash_read((uint32)otaselpart->address, (uint32_t*)&sa1, sizeof(ota_select));
