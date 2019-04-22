@@ -117,6 +117,7 @@ int param_load(void)
 	cJSON *cj;
 	int  i;
 	double d;
+	int save_param = 0;	// flag - save parameters
 
        	if (stat(RECT_CONFIGURATION, &st) != 0) {
 		// Файл не найден - заполняем значениями по умолчанию
@@ -139,7 +140,12 @@ int param_load(void)
 
 	for (v = DEFL_PARAMS; v && v->name; v++) {
 		cj = cJSON_GetObjectItem(root, v->name);
-		if (!cj) continue; // TODO - need default value
+		if (!cj) {
+			// New parameter - create default and save
+			v->val = strdup(v->default_val);
+			save_param++;
+			continue;
+		}
 		v->val = strdup(cj->valuestring);
 
 		switch (v->type) {
@@ -148,17 +154,53 @@ int param_load(void)
 			break;
 		case VARIABLE_INT:
 			i = atoi(v->val);
+			if (i < v->min || i > v->max) {
+				free(v->val);
+				v->val = strdup(v->default_val);
+				save_param++;
+			}
 			break;
 		case VARIABLE_FLOAT:
 			d = atof(v->val);
+			if (d < (float)(v->min) || d > (float)(v->max)) {
+				free(v->val);
+				v->val = strdup(v->default_val);
+				save_param++;
+			}
 			break;
 		default:
 			break;
 		}
 	}
-
+	if (save_param) param_save();
 	return 0;
 }
+
+/* Сохранение параметров работы */
+int param_save(void)
+{
+	vaiable_list *v;
+	cJSON *ja;
+	FILE *f = fopen(RECT_CONFIGURATION, "w");
+
+	if (!f) {
+		ESP_LOGI(TAG, "Save configuration failed. Can't open file: %s", RECT_CONFIGURATION);
+		return -1;
+	}
+
+	ja = cJSON_CreateObject();
+	for (v = DEFL_PARAMS; v && v->name; v++) {
+		cJSON_AddItemToObject(ja, v->name, cJSON_CreateString(v->val));
+	}
+
+	char *r=cJSON_Print(ja);
+	fprintf(f, "%s", r);
+	if (r) free(r);
+	cJSON_Delete(ja);
+	fclose(f);
+	return 0;
+}
+
 
 
 /* Получение текстовой переменной */
