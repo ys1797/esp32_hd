@@ -152,7 +152,6 @@ const char *getAlarmModeStr(void);
 const char *getMainStatusStr(void);
 cJSON* getInformation(void);
 
-int param_default(void);	// Сброс параметров в значение по умолчанию
 void sendSMS(char *text);	// Отправка SMS
 void Rectification(void);	// Обработка состояний в режиме ректификации
 void setPower(int16_t pw);	// Установка рабочей мощности
