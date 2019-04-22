@@ -26,7 +26,7 @@ License (MIT license):
 #include "esp_console.h"
 #include "driver/gpio.h"
 #include "driver/i2c.h"
-#include "esp32/rom/ets_sys.h"
+#include "rom/ets_sys.h"
 #include <sys/stat.h>
 #include "argtable3/argtable3.h"
 #include <cJSON.h>
