@@ -92,6 +92,9 @@ typedef struct  {
         int min;
         int max;
 	char *default_val;
+	char *val;
 } vaiable_list;
 
 extern vaiable_list DEFL_PARAMS[];	// ѕераметры
+
+int param_default(void);	// —брос параметров в значение по умолчанию
