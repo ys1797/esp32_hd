@@ -125,40 +125,11 @@ float TempWaterIn = -1;			// Температура воды на входе в 
 float TempWaterOut = -1; 		// Температура воды на выходе из контура
 int16_t WaterFlow=-1;			// Значения датчика потока воды.
 
-int16_t maxPower;		// Номинальная мощность ТЭНов
-int16_t ustPowerReg = 700;	// Мощность в режиме регулятора мощности
-double tempEndRectRazgon;	// Температура окончания режима разнона
-int16_t powerRect = 1000;	// Мощность ректификации
-double tEndRectOtbGlv=83;       // Температура окончания отбора голов
-int16_t timeChimRectOtbGlv=20;	// Период для шим'a отбора голов
-int16_t procChimOtbGlv=5;	// Процент ШИМ отбора голов
-int16_t minProcChimOtbSR=20;	// Минимальный процент ШИМ'а отбора СР
-int16_t beginProcChimOtbSR=40;	// Начальный процент ШИМ отбора СР
-int16_t timeChimRectOtbSR=10;	// Период для шим'a отбора СР
-double tempDeltaRect=0.3;	// Дельта температуры для ректификации
-double tempEndRectOtbSR=96.5;	// Температура окончания отбора СР
-double tempEndRect=99.5;	// Температура в кубе, при которой прекращается ректификация
-int16_t p_MPX5010=0;		// Поправка для датчика давления
-int16_t timeStabKolonna=900;	// Время стабилизации колонны
-int16_t timeRestabKolonna=1800;	// Таймаут для повторной стабилизации колонны
-int16_t pShim=90;		// Процент 100 Гц шим, для защиты клапанов от перегрева
-bool    klpSilentNode = true;	// Режим плавного открытия клапанов.
-int16_t urovenProvodimostSR=0;	// Уровень проводимости, меньше которого переходим к СР
-int16_t cntCHIM=-4;		// Количество значений в таблице обучения ШИМ
-int16_t decrementCHIM=10;	// Шаг ушеньшения % ШИМ'a при отборе СР
-int16_t incrementCHIM=5;	// Шаг увеличения % ШИМ'a при отборе СР
-int16_t timeAutoIncCHIM=600;	// Макс время стабилизации до увеличения ШИМ'а СР 
-int16_t alarmMPX5010=0;		// Давление при котором надо выдавать сингал тревоги
-bool beepChangeState = true;	// Звуковой сигнал при смене состояния процесса 
-
-int16_t powerDistil = 1000;	// Мощность дистилляции
-double tempEndDistil=99.5;	// Температура в кубе, при которой прекращается дистилляции
-
 // Динамические параметры
 double tempTube20Prev;		// Запомненое значение температуры в колонне
 uint32_t secTempPrev;		// Отметка времени измеренной температуры 
 double  tempStabSR;		// Температура, относительно которой стабилизируется отбор СР
-int16_t ProcChimSR;		// Текущий процент отбора СР
+int16_t ProcChimSR = 0;		// Текущий процент отбора СР
 #define COUNT_PWM	15	// Размер таблицы автоподбора шим
 
 typedef struct {
@@ -582,7 +553,7 @@ static void timer_example_evt_task(void *arg)
 					// Открываем клапан
 					int ch = Klp[i].channel;
 				        LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 1;
-					if (klpSilentNode) {
+					if (getIntParam(DEFL_PARAMS, "klpSilentNode")) {
 						ledc_set_fade_with_time(LEDC_HIGH_SPEED_MODE, ch, 1023, 1000);
 						ledc_fade_start(LEDC_HIGH_SPEED_MODE, ch, LEDC_FADE_NO_WAIT);
 					} else {
@@ -718,11 +689,6 @@ int param_setup(void)
 {
 	esp_err_t err;
 	nvs_handle nvs;
-	struct stat st;
-	char *buff = NULL;
-	size_t size;
-	FILE *f;
-	cJSON *v;
 
 	ESP_ERROR_CHECK(err = nvs_open("storage", NVS_READWRITE, &nvs));
 	if (err != ESP_OK) return err;
@@ -731,109 +697,11 @@ int param_setup(void)
 	nvs_get_i16(nvs, "MainStatus", &MainStatus);
 	nvs_close(nvs);
 
-	if (stat(RECT_CONFIGURATION, &st) != 0) {
+	// Загрузка параметров 
+	if (param_load() < 0) {
 		// Файл не найден - заполняем значениями по умолчанию
 		return param_default();
 	}
-	f = fopen(RECT_CONFIGURATION, "r");
-	buff = malloc(st.st_size+2);
-	if (!buff) {
-		fclose(f);
-		return -2;
-	}
-	size = fread(buff, 1, st.st_size, f);
-	buff[size]=0;
-	fclose(f);
-
-	cJSON *root = cJSON_Parse(buff);
-	free(buff);
-	if (!root) return -3;
-
-	v = cJSON_GetObjectItem(root, "maxPower");
-	if (v) maxPower = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "ustPowerReg");
-	if (v) ustPowerReg = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "tempEndRectRazgon");
-	if (v) tempEndRectRazgon = v->valuedouble;
-
-	v = cJSON_GetObjectItem(root, "powerRect");
-	if (v) powerRect = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "tEndRectOtbGlv");
-	if (v) tEndRectOtbGlv = v->valuedouble;
-
-	v = cJSON_GetObjectItem(root, "timeChimRectOtbGlv");
-	if (v) timeChimRectOtbGlv = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "procChimOtbGlv");
-	if (v) procChimOtbGlv = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "minProcChimOtbSR");
-	if (v) minProcChimOtbSR = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "beginProcChimOtbSR");
-	if (v) beginProcChimOtbSR = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "timeChimRectOtbSR");
-	if (v) timeChimRectOtbSR = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "tempDeltaRect");
-	if (v) tempDeltaRect = v->valuedouble;
-
-	v = cJSON_GetObjectItem(root, "tempEndRectOtbSR");
-	if (v) tempEndRectOtbSR = v->valuedouble;
-
-	v = cJSON_GetObjectItem(root, "tempEndRect");
-	if (v)  tempEndRect = v->valuedouble;
-
-	v = cJSON_GetObjectItem(root, "p_MPX5010");
-	if (v) p_MPX5010 = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "timeStabKolonna");
-	if (v) timeStabKolonna = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "timeRestabKolonna");
-	if (v) timeRestabKolonna = v->valueint;
-	if (timeRestabKolonna <= 0) timeRestabKolonna = 1800;
-
-	v = cJSON_GetObjectItem(root, "pShim");
-	if (v) pShim = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "klpSilentNode");
-	if (v) beepChangeState = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "urovenProvodimostSR");
-	if (v) urovenProvodimostSR = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "cntCHIM");
-	if (v) cntCHIM = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "decrementCHIM");
-	if (v) decrementCHIM = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "incrementCHIM");
-	if (v) incrementCHIM = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "timeAutoIncCHIM");
-	if (v) timeAutoIncCHIM = v->valueint;
-	if (timeAutoIncCHIM <= 0) timeAutoIncCHIM=600;
-
-	v = cJSON_GetObjectItem(root, "alarmMPX5010");
-	if (v) alarmMPX5010 = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "beepChangeState");
-	if (v) beepChangeState = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "powerDistil");
-	if (v) powerDistil = v->valueint;
-
-	v = cJSON_GetObjectItem(root, "tempEndDistil");
-	if (v)  tempEndDistil = v->valuedouble;
-
-
-	cJSON_Delete(root);
 	return ESP_OK;
 }
 
@@ -906,8 +774,9 @@ cJSON* getInformation(void)
 	if (MODE_RECTIFICATION == MainMode) {
 		// Режим ректификации
 		cJSON_AddItemToObject(ja, "rect_p_shim", cJSON_CreateNumber(ProcChimSR));
+		float timeStabKolonna = fabs(getFloatParam(DEFL_PARAMS, "timeStabKolonna"));
 		if (MainStatus == PROC_STAB) {
-			snprintf(data, sizeof(data)-1, "%02d/%02.0f sec", uptime_counter-secTempPrev, fabs(timeStabKolonna));
+			snprintf(data, sizeof(data)-1, "%02d/%02.0f sec", uptime_counter-secTempPrev, timeStabKolonna);
 			cJSON_AddItemToObject(ja, "rect_time_stab", cJSON_CreateString(data));
 		}
 		if (MainStatus == PROC_T_WAIT) {
@@ -957,7 +826,7 @@ void sendSMS(char *text)
 void setPower(int16_t pw)
 {
 	nvs_handle nvs;
-	if (pw > maxPower) SetPower = maxPower;
+	if (pw > getIntParam(DEFL_PARAMS, "maxPower")) SetPower = getIntParam(DEFL_PARAMS, "maxPower");
 	else SetPower = pw;
 	if (nvs_open("storage", NVS_READWRITE, &nvs) == ESP_OK) {
 		nvs_set_i16(nvs, "SetPower", SetPower);
@@ -989,7 +858,7 @@ void setMainMode(int nm)
 		// Режим регулятора мощности
 		ESP_LOGI(TAG, "Main mode: Power reg.");
 		MainStatus = PROC_START;
-		setPower(ustPowerReg);
+		setPower(getIntParam(DEFL_PARAMS, "ustPowerReg"));
 		break;
 	case MODE_DISTIL:
 		// Режим дистилляции
@@ -1042,28 +911,32 @@ void setStatus(int next)
 			if (MainStatus == START_WAIT) {
 				MainStatus = PROC_START;
 			} else if (MainStatus == PROC_START) {
-				setPower(maxPower);	//  максимальная мощность для разгона
+				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
 				MainStatus = PROC_RAZGON;
 			} else if (MainStatus == PROC_RAZGON) {
 				openKlp(klp_water);	// Открытие клапана воды
-				setPower(powerRect);    // Устанавливаем мощность ректификации
+				setPower(getIntParam(DEFL_PARAMS, "powerRect"));    // Устанавливаем мощность ректификации
 				MainStatus = PROC_STAB; // Ручной переход в режим стабилизации
 			} else if (MainStatus == PROC_STAB) {
-				setPower(powerRect);   // Устанавливаем мощность ректификации
+				setPower(getIntParam(DEFL_PARAMS, "powerRect"));   // Устанавливаем мощность ректификации
 				secTempPrev = uptime_counter;
 				// Устанавливаем медленный ШИМ клапан отбора хвостов и голов в соответвии с установками
+				float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
+				float procChimOtbGlv = getFloatParam(DEFL_PARAMS, "procChimOtbGlv");
 				topen = (float)(timeChimRectOtbGlv)/100*(float)(procChimOtbGlv);
+
 				startGlvKlp(topen, timeChimRectOtbGlv-topen);
 				tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
 				MainStatus = PROC_GLV; // Ручной переход в режим отбора голов
 			} else if (MainStatus == PROC_GLV) {
 				tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
 				closeKlp(klp_glwhq);  // Отключение клапана отбора голов/хвостов
-				ProcChimSR = beginProcChimOtbSR; // Устанавливаем стартовый % отбора товарного продукта
+				ProcChimSR = getIntParam(DEFL_PARAMS, "beginProcChimOtbSR"); // Устанавливаем стартовый % отбора товарного продукта
 				MainStatus = PROC_T_WAIT;
 			} else if (MainStatus == PROC_T_WAIT) {
 				MainStatus = PROC_SR;
 			} else if (MainStatus == PROC_SR) {
+				float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
 				closeKlp(klp_sr); 			// Отключение клапана продукта
 				topen = (float)(timeChimRectOtbGlv)*90/100;
 				startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
@@ -1092,7 +965,7 @@ void setStatus(int next)
 	default:
 		break;
 	}
-	if (beepChangeState) myBeep(false);
+	if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(false);
 }
 
 /*
@@ -1103,7 +976,7 @@ int16_t GetSrPWM(void)
 	int16_t found = ProcChimSR;
 	double t = getCubeTemp();
 
-	for (int i=1; i<cntCHIM; i++) {
+	for (int i=1; i<getIntParam(DEFL_PARAMS, "cntCHIM"); i++) {
 		if (autoPWM[i-1].temp <= t && autoPWM[i].temp > t) {
 			if (autoPWM[i-1].pwm > 0) {
 				found = (t - autoPWM[i-1].temp) * 
@@ -1120,7 +993,7 @@ int16_t GetSrPWM(void)
 void Rectification(void)
 {
 	double t;
-	float topen;
+	float topen,  tempEndRectRazgon;
 	char b[80];
 
 	switch (MainStatus) {
@@ -1130,11 +1003,13 @@ void Rectification(void)
 	case PROC_START:
 		// Начало процесса
 		MainStatus = PROC_RAZGON;
-		if (beepChangeState) myBeep(true);
-		setPower(maxPower);	//  максимальная мощность для разгона
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
+		setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
 
 	case PROC_RAZGON:
 		// Разгон до рабочей температуры
+		 tempEndRectRazgon = getFloatParam(DEFL_PARAMS, "tempEndRectRazgon");
+
 		if (tempEndRectRazgon > 0) t = getCubeTemp();
 		else t = getTube20Temp();
 		if (-1 == t) break;
@@ -1142,7 +1017,7 @@ void Rectification(void)
 
 		// Переход в режим стабилизации колонны
 		openKlp(klp_water);	// Открытие клапана воды
-		setPower(powerRect);	// Устанавливаем мощность ректификации
+		setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
 		// Запоминаем температуру и время
 		tempStabSR = tempTube20Prev = getTube20Temp();
 		secTempPrev = uptime_counter;
@@ -1150,9 +1025,10 @@ void Rectification(void)
 #ifdef DEBUG
 		ESP_LOGI(TAG, "Switch state to stabilization.");
 #endif
-		if (beepChangeState) myBeep(true);
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 
 	case PROC_STAB:
+		{
 		// Стабилизация колонны
 		t = getTube20Temp();
 		if (-1 == t) {
@@ -1167,13 +1043,14 @@ void Rectification(void)
 #endif
 			break;
 		}
+		float timeStabKolonna = getFloatParam(DEFL_PARAMS, "timeStabKolonna");
 		if (timeStabKolonna > 0) {
 			// Время относительно последнего изменения температуры
 			if (fabs(t - tempTube20Prev) < 0.2) {
 				// Если текущая температура колонны равна температуре,
 				// запомненной ранее в пределах погрешности в 0.2 градуса C
 #ifdef DEBUG
-			ESP_LOGI(TAG, "Stabillization %d of %02.0f sec.", uptime_counter-secTempPrev, fabs(timeStabKolonna));
+				ESP_LOGI(TAG, "Stabillization %d of %02.0f sec.", uptime_counter-secTempPrev, fabs(timeStabKolonna));
 #endif
 
 				if (uptime_counter-secTempPrev<timeStabKolonna) {
@@ -1186,7 +1063,7 @@ void Rectification(void)
 				// стабилизировалась и переходим к отбору голов
 			} else {
 #ifdef DEBUG
-			ESP_LOGI(TAG, "Stab. temp. changed from %0.2f to %0.2f. Reseting timer.", tempTube20Prev, t);
+				ESP_LOGI(TAG, "Stab. temp. changed from %0.2f to %0.2f. Reseting timer.", tempTube20Prev, t);
 #endif
 
 				// Рассогласование температуры запоминаем
@@ -1209,10 +1086,12 @@ void Rectification(void)
 
 		// Переходим к следующему этапу - отбору голов. 
 		MainStatus = PROC_GLV;
-		if (beepChangeState) myBeep(true);
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		secTempPrev = uptime_counter;
-		setPower(powerRect);	// Устанавливаем мощность ректификации
+		setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
 		// Устанавливаем медленный ШИМ клапан отбора хвостов и голов в соответвии с установками
+		float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
+		float procChimOtbGlv = getFloatParam(DEFL_PARAMS, "procChimOtbGlv");
 		topen = (float)(timeChimRectOtbGlv)/100*(float)(procChimOtbGlv);
 		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
 
@@ -1221,20 +1100,20 @@ void Rectification(void)
 			ESP_LOGI(TAG, "Switch to `glv` stage");
 #endif
 
-
+		}
 	case PROC_GLV:
 		// Отбор головных фракций
 		t = getCubeTemp();
-		if (t < tEndRectOtbGlv) {
+		if (t < getFloatParam(DEFL_PARAMS, "tEndRectOtbGlv")) {
 			// Пока температура в кубе не выросла выше окончания отбора голов, продолжаем это состояни
 			break;       
 		}
 		// Окончание отбора голов
 		closeKlp(klp_glwhq); 			// Отключение клапана отбора голов/хвостов
 		MainStatus = PROC_T_WAIT;		// Переходим к стабилизации температуры
-		ProcChimSR = beginProcChimOtbSR;	// Устанавливаем стартовый % отбора товарного продукта
+		ProcChimSR = getIntParam(DEFL_PARAMS, "beginProcChimOtbSR");	// Устанавливаем стартовый % отбора товарного продукта
 		tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
-		if (beepChangeState) myBeep(true);
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 			ESP_LOGI(TAG, "Switch to `T wait` stage");
 #endif
@@ -1244,11 +1123,11 @@ void Rectification(void)
 		// Ожидание стабилизации температуры
 		if (tempStabSR <= 0) tempStabSR =28.5;
 
-		if (0 == rect_timer1 && timeRestabKolonna > 0) {
+		if (0 == rect_timer1 && getIntParam(DEFL_PARAMS, "timeRestabKolonna") > 0) {
 			// Если колонна слишком долго находится в режиме стопа,
 			// то температуру стабилизации примем за новую
 			tempStabSR = getTube20Temp();
-			if (beepChangeState) myBeep(true);
+			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 			ESP_LOGI(TAG, "New temperature for stabilization: %0.2f", tempStabSR);
 #endif
@@ -1256,12 +1135,13 @@ void Rectification(void)
 		}
 
 		t = getCubeTemp();
-		if (t >= tempEndRectOtbSR) {
+		if (t >= getFloatParam(DEFL_PARAMS, "tempEndRectOtbSR")) {
 			// Переходим к отбору хвостов
+			float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
 			topen = (float)(timeChimRectOtbGlv)*90/100;
 			startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
-        			MainStatus = PROC_HV;
-			if (beepChangeState) myBeep(true);
+       			MainStatus = PROC_HV;
+			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 			break;
 		}
 		
@@ -1274,12 +1154,13 @@ void Rectification(void)
 		// Реализуется отбор по-шпоре, что в функции прописано то и будет возвращено.
 		ProcChimSR = GetSrPWM();
 		// Устанавливаем медленный ШИМ клапана продукта
+		float timeChimRectOtbSR = getFloatParam(DEFL_PARAMS, "timeChimRectOtbSR");
 		topen = (float)(timeChimRectOtbSR)*(float)(ProcChimSR)/100;
 		startSrKlp(topen, (float)(timeChimRectOtbSR)-topen);
 
 		secTempPrev = uptime_counter;	// Запомним время, когда стабилизировалась температура
 		MainStatus = PROC_SR;		// Переход к отбору продукта
-		if (beepChangeState) myBeep(true);
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 		ESP_LOGI(TAG, "Switch state to SR. Temperature: %0.2f", tempStabSR);
 #endif
@@ -1289,9 +1170,12 @@ void Rectification(void)
 		// Отбор СР
 		t = getCubeTemp();
 
-		if (t >= tempStabSR+tempDeltaRect) {
+		int minProcChimOtbSR = getIntParam(DEFL_PARAMS, "minProcChimOtbSR");
+
+		if (t >= tempStabSR + getFloatParam(DEFL_PARAMS, "tempDeltaRect")) {
 			// Температура превысила температуру стабилизации
 			closeKlp(klp_sr); // Отключение клапана продукта
+			int cntCHIM = getIntParam(DEFL_PARAMS, "cntCHIM");
 
 			if (cntCHIM < 0) {
 				// Запоминаем температуру, когда произошел стоп за вычетом 0.1 градуса.
@@ -1299,29 +1183,32 @@ void Rectification(void)
 				autoPWM[-cntCHIM].pwm = ProcChimSR;
 				if (-cntCHIM < COUNT_PWM-1) cntCHIM--;
 			}
+			int decrementCHIM = getIntParam(DEFL_PARAMS, "decrementCHIM");
 			if (decrementCHIM>=0) { 
 				// Тогда уменьшаем  ШИМ указанное число процентов в абсолютном выражении
 				ProcChimSR -= decrementCHIM; 
 			} else {
-				uint16_t v = (ProcChimSR* (-decrementCHIM))/100;
+				uint16_t v = (ProcChimSR * (-decrementCHIM))/100;
 				// Процентное отношение может быть очень мало,
 				// поэтому если получилось нулевое значение, то вычтем единицу.
 				if (v<=0) v=1;
 				ProcChimSR -= v; // Тогда увеличиваем ШИМ на число процентов в относительном выражении
 			}
 			if (ProcChimSR < minProcChimOtbSR) ProcChimSR = minProcChimOtbSR;
-			rect_timer1 = timeRestabKolonna; // Установка таймера стабилизации
+			rect_timer1 = getIntParam(DEFL_PARAMS, "timeRestabKolonna"); // Установка таймера стабилизации
 			MainStatus = PROC_T_WAIT; // Переходим в режим стабилизации
-			if (beepChangeState) myBeep(true);
+			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 			ESP_LOGI(TAG, "Switch state to temperature re-stabilization.");
 #endif
 			break;
 		} else {
+			int timeAutoIncCHIM = getIntParam(DEFL_PARAMS, "timeAutoIncCHIM");
         		if (timeAutoIncCHIM>0 && (uptime_counter - secTempPrev) > timeAutoIncCHIM) {
 				// Если температура не выросла более, чем за 10 минут, прибавим ШИМ на 5%
 				if (ProcChimSR > minProcChimOtbSR) {
 					// Шим прибавляем только если не дошли до минимального
+					int incrementCHIM = getIntParam(DEFL_PARAMS, "incrementCHIM");
 					if (incrementCHIM>=0) {
 						// Абсолютное значение
 						ProcChimSR += incrementCHIM;
@@ -1330,6 +1217,8 @@ void Rectification(void)
 						ProcChimSR += (ProcChimSR*(-incrementCHIM))/100;
 					}
 					if (ProcChimSR>95) ProcChimSR=95;
+
+					float timeChimRectOtbSR = getFloatParam(DEFL_PARAMS, "timeChimRectOtbSR");
 					topen = (float)(timeChimRectOtbSR)*(float)(ProcChimSR)/100;
 					startSrKlp(topen, (float)(timeChimRectOtbSR)-topen);
 				}
@@ -1337,21 +1226,22 @@ void Rectification(void)
 			}
 		}
 
-		if (t < tempEndRectOtbSR) {
+		if (t <= getFloatParam(DEFL_PARAMS, "tempEndRectOtbSR")) {
 			break;
 		}
 		// Температура в кубе превысила температуру при которой надо отбирать СР
 		closeKlp(klp_sr); 			// Отключение клапана продукта
+		float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
 		topen = (float)(timeChimRectOtbGlv)*90/100;
 		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
 		MainStatus = PROC_HV;			// Переход к отбору хвостов
-		if (beepChangeState) myBeep(true);
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 
 
 	case PROC_HV:
 		// Отбор хвостовых фракций
 		t = getCubeTemp();
-		if (t < tempEndRect) {
+		if (t < getFloatParam(DEFL_PARAMS, "tempEndRect")) {
 			break;
 		}
 		// Температура достигла отметки окончания ректификации	
@@ -1360,7 +1250,7 @@ void Rectification(void)
 		closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
 		secTempPrev = uptime_counter;
 		MainStatus = PROC_WAITEND;			
-		if (beepChangeState) myBeep(true);
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 		ESP_LOGI(TAG, "Switch state to wait End of Rectification.");
 #endif
@@ -1375,7 +1265,7 @@ void Rectification(void)
 			sprintf(b, "Rectification complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
 			sendSMS(b);
         		MainStatus = PROC_END;
-			if (beepChangeState) myBeep(true);
+			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 		ESP_LOGI(TAG, "%s", b);
 #endif
@@ -1402,32 +1292,32 @@ void Distillation(void)
 	case PROC_START:
 		// Начало процесса
 		MainStatus = PROC_RAZGON;
-		if (beepChangeState) myBeep(true);
-		setPower(maxPower);	//  максимальная мощность для разгона
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
+		setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
 
 	case PROC_RAZGON:
 		// Разгон до рабочей температуры
 		t = getCubeTemp();
 		if (-1 == t) break;
-		if (t < tempEndRectRazgon) break;
+		if (t < getFloatParam(DEFL_PARAMS, "tempEndRectRazgon")) break;
 
 		// Открытие клапана воды
 		openKlp(klp_water);
 
 		MainStatus = PROC_DISTILL;
-		if (beepChangeState) myBeep(true);
-		setPower(powerDistil);	// Мощность дистилляции
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
+		setPower(getIntParam(DEFL_PARAMS, "powerDistil"));	// Мощность дистилляции
 
 	case PROC_DISTILL:
 		// Процесс дистилляции
 		t = getCubeTemp();
-		if (t < tempEndDistil) {
+		if (t < getFloatParam(DEFL_PARAMS, "tempEndDistil")) {
 			break;
 		}
 
 		secTempPrev = uptime_counter;
 		MainStatus = PROC_WAITEND;			// Переход к окончанию процесса
-		if (beepChangeState) myBeep(true);
+		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 
 	case PROC_WAITEND:
 		// Отключение нагрева, подача воды для охлаждения
@@ -1435,7 +1325,7 @@ void Distillation(void)
 		if (uptime_counter - secTempPrev > 180) {
 			MainStatus = PROC_END;
 			SecondsEnd = uptime_counter;
-			if (beepChangeState) myBeep(true);
+			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		}
 
 		break;
@@ -1479,7 +1369,7 @@ void openKlp(int i)
 
 	ESP_LOGI(TAG, "Open klp %d", i);
         LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 1;
-	if (klpSilentNode) {
+	if (getIntParam(DEFL_PARAMS, "klpSilentNode")) {
 		ledc_set_fade_with_time(LEDC_HIGH_SPEED_MODE, ch, 1023, 1000);
 		ledc_fade_start(LEDC_HIGH_SPEED_MODE, ch, LEDC_FADE_NO_WAIT);
 	} else {
@@ -1802,7 +1692,7 @@ void app_main(void)
 
 	ESP_ERROR_CHECK(gpio_intr_enable(GPIO_DETECT_ZERO));
 	ESP_LOGI(TAG, "Enabled zero crossing interrupt.\n");
-	if (beepChangeState) myBeep(false);
+	if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(false);
 
 
 
