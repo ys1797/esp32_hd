@@ -172,6 +172,18 @@ void myBeep(bool lng)
 	gpio_set_level(GPIO_BEEP, 1);	
 }
 
+double roundX (double x, int precision)
+{
+   int mul = 10;
+   
+   for (int i = 0; i < precision; i++)
+      mul *= mul;
+   if (x > 0)
+      return floor(x * mul + .5) / mul;
+   else
+      return ceil(x * mul - .5) / mul;
+}
+
 
 /*
  * Функция вывода информации на первый экран
@@ -759,7 +771,7 @@ cJSON* getInformation(void)
 		float pwm_percent = 0;
 		if (Klp[i].open_time>0) {
 			float p = pwm/Klp[i].open_time;
-			if (p) pwm_percent = 100/p;
+			if (p) pwm_percent = roundX(100/p,2);
 		}
 
 		jt = cJSON_CreateObject();
