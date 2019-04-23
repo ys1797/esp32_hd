@@ -33,6 +33,14 @@ License (MIT license):
 #include "esp_log.h"
 #include "config.h"
 
+/* Сетевые параметры */
+vaiable_list NET_PARAMS[] =
+{
+	{NULL}
+};
+
+
+/* Параметры устройства */
 vaiable_list DEFL_PARAMS[] =
 {
 	{"maxPower",		VARIABLE_INT,	0,	15000,	"2000",	NULL},
@@ -201,13 +209,59 @@ int param_save(void)
 	return 0;
 }
 
+/* Проверка существования параметра */
+int checkParam(vaiable_list list[], char *name)
+{
+	vaiable_list *v;
+	for (v = list; v && v->name; v++) {
+		if (!strcasecmp(name, v->name)) return 1;
+	}
+	return 0;
+}
+
+/* Установка  переменной */
+int setParam(vaiable_list list[], char *name, char *value)
+{
+	vaiable_list *v;
+	for (v = list; v && v->name; v++) {
+		if (!strcasecmp(name, v->name)) {
+			switch (v->type) {
+			case VARIABLE_CHECKBOX:
+			case VARIABLE_STRING:
+				if (v->val) free(v->val);
+				v->val = strdup(value);
+				break;
+			case VARIABLE_INT:
+				if (v->val) free(v->val);
+				int i = atoi(v->default_val);
+				if (i < v->min || i > v->max) {
+					v->val = strdup(v->default_val);
+				} else {
+					v->val = strdup(value);
+				}
+				break;
+			case VARIABLE_FLOAT:
+				if (v->val) free(v->val);
+				double d = atof(v->default_val);
+				if (d < (float)(v->min) || d > (float)(v->max)) {
+					v->val = strdup(v->default_val);
+				} else {
+					v->val = strdup(value);
+				}
+				break;
+			}
+			return 1;
+		}
+	}
+	return 0;
+}
 
 
 /* Получение текстовой переменной */
-char *getStringParam(char *name)
+char *getStringParam(vaiable_list list[], char *name)
 {
 	vaiable_list *v;
-	for (v = DEFL_PARAMS; v && v->name; v++) {
+	for (v = list; v && v->name; v++) {
 		if (VARIABLE_STRING == v->type && !strcasecmp(name, v->name)) {
 			if (NULL == v->val) return v->default_val;
 			return v->val;
@@ -217,29 +271,27 @@ char *getStringParam(char *name)
 }
 
 /* Получение переменной типа int */
-int  getIntParam(char *name)
+int  getIntParam(vaiable_list list[], char *name)
 {
 	vaiable_list *v;
-	for (v = DEFL_PARAMS; v && v->name; v++) {
-		if (VARIABLE_INT == v->type && !strcasecmp(name, v->name)) {
+	for (v = list; v && v->name; v++) {
+		if (!strcasecmp(name, v->name)) {
 			if (NULL == v->val) return atoi(v->default_val);
 			return atoi(v->val);
 		}
 	}
-
 	return 0;
 }
 
 /* Получение переменной типа float*/
-float getFloatParam(char *name)
+float getFloatParam(vaiable_list list[], char *name)
 {
 	vaiable_list *v;
-	for (v = DEFL_PARAMS; v && v->name; v++) {
-		if (VARIABLE_FLOAT == v->type && !strcasecmp(name, v->name)) {
+	for (v = list; v && v->name; v++) {
+		if (!strcasecmp(name, v->name)) {
 			if (NULL == v->val) return atof(v->default_val);
 			return atof(v->val);
 		}
 	}
-
 	return 0;
 }

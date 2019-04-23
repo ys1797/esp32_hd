@@ -93,14 +93,19 @@ typedef struct  {
         int max;
 	char *default_val;
 	char *val;
+//	int intval;
+//	float floatval;
 } vaiable_list;
 
-extern vaiable_list DEFL_PARAMS[];	// Пераметры
+extern vaiable_list NET_PARAMS[];	// Сетевые параметры
+extern vaiable_list DEFL_PARAMS[];	// Пераметры устройства
 
 int param_default(void);		// Сброс параметров в значение по умолчанию
 int param_load(void);			/* Загрузка и установка параметров работы */
 int param_save(void);			/* Сохранение параметров работы */
-char* getStringParam(char *name);	/* Получение текстовой переменной */
-int  getIntParam(char *name);		/* Получение переменной типа int */
-float getFloatParam(char *name);	/* Получение переменной типа float*/
+int checkParam(vaiable_list list[], char *name);	/* Проверка существования параметра */
+int setParam(vaiable_list list[], char *name, char *value); /* Установка  переменной */
+char *getStringParam(vaiable_list list[], char *name);	/* Получение текстовой переменной */
+int  getIntParam(vaiable_list list[], char *name);	/* Получение переменной типа int */
+float getFloatParam(vaiable_list list[], char *name);	/* Получение переменной типа float*/
 
