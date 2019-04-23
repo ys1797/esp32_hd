@@ -462,45 +462,16 @@ int httpParamSetup(HttpdConnData *connData)
 	send_json_headers(connData);
 
 	if (connData->requestType == HTTPD_METHOD_POST) {
-		FILE *f = fopen(RECT_CONFIGURATION, "w");
-		if (f) {
-			int  i;
-			double d;
-			char param[82];
-			vaiable_list *v;
-			cJSON *ja = cJSON_CreateObject();
-			for (v = DEFL_PARAMS; v && v->name; v++) {
-				if (httpdFindArg(connData->post->buff, v->name, param, sizeof(param))>=0) {
-					switch (v->type) {
-					case VARIABLE_CHECKBOX:
-						i = atoi(param);
-						cJSON_AddItemToObject(ja, v->name, cJSON_CreateBool(i));
-						break;
-					case VARIABLE_STRING:
-						cJSON_AddItemToObject(ja, v->name, cJSON_CreateString(param));
-						break;
-					case VARIABLE_INT:
-						i = atoi(param);
-						if (i >= v->min && i < v->max) {
-							cJSON_AddItemToObject(ja, v->name, cJSON_CreateNumber(i));
-						}
-						break;
-					case VARIABLE_FLOAT:
-						d = atof(param);
-						if (d >= v->min && d < v->max) {
-							cJSON_AddItemToObject(ja, v->name, cJSON_CreateNumber(d));
-						}
-						break;
-
-					}
-				}	
-			}
-			char *r=cJSON_Print(ja);
-			fprintf(f, "%s", r);
-			if (r) free(r);
-			cJSON_Delete(ja);
-			fclose(f);
+		char *var, *val;
+		char param[82];
+		while ((val = strsep(&connData->post->buff, "&"))) {
+	                var = strsep(&val, "=");
+			if (!checkParam(DEFL_PARAMS, var)) continue;
+	                if (val) httpdUrlDecode(val, strlen(val), param, sizeof(param));
+			else  val = "";
+			setParam(DEFL_PARAMS, var, val);
 		}
+		param_save();
 		json_ok(connData);
 	} else {
 		json_err(connData);
