@@ -57,10 +57,6 @@ extern char *Hostname;		// Имя хоста
 extern char *httpUser;		// Имя пользователя для http
 extern char *httpPassword;	// Пароль для http
 extern int httpSecure;		// Спрашивать пароль
-extern char *smscUser;		// Имя пользователя для smsc
-extern char *smscHash;		// Хэш пароля smsc
-extern char *smscPhones;	// Номер телефона для Smsc
-extern int useSmsc;		// Использовать smsc
 extern int wsPeriod;		// Период обновления данных через websocket
 
 extern main_mode MainMode;	// Текущий режим работы
