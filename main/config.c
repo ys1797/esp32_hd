@@ -76,16 +76,16 @@ vaiable_list DEFL_PARAMS[] =
 };
 
 /* Сброс параметров в значение по умолчанию */
-int param_default(void)
+int param_default(vaiable_list list[], const char *finename)
 {
-	FILE *f = fopen(RECT_CONFIGURATION, "w");
+	FILE *f = fopen(finename, "w");
 	vaiable_list *v;
 	int  i;
 	double d;
 
 	if (f) {
 		cJSON *ja = cJSON_CreateObject();
-		for (v = DEFL_PARAMS; v && v->name; v++) {
+		for (v = list; v && v->name; v++) {
 			v->val = strdup(v->default_val);
 			switch (v->type) {
 			case VARIABLE_CHECKBOX:
@@ -115,7 +115,7 @@ int param_default(void)
 }
 
 /* Загрузка и установка параметров работы */
-int param_load(void)
+int param_load(vaiable_list list[], const char *finename)
 {
 	struct stat st;
 	char *buff = NULL;
@@ -127,11 +127,11 @@ int param_load(void)
 	double d;
 	int save_param = 0;	// flag - save parameters
 
-       	if (stat(RECT_CONFIGURATION, &st) != 0) {
+       	if (stat(finename, &st) != 0) {
 		// Файл не найден - заполняем значениями по умолчанию
-		return param_default();
+		return param_default(list, finename);
 	}
-	f = fopen(RECT_CONFIGURATION, "r");
+	f = fopen(finename, "r");
 	buff = malloc(st.st_size+2);
 	if (!buff) {
 		fclose(f);
@@ -146,7 +146,7 @@ int param_load(void)
 	if (!root) return -3;
 
 
-	for (v = DEFL_PARAMS; v && v->name; v++) {
+	for (v = list; v && v->name; v++) {
 		cj = cJSON_GetObjectItem(root, v->name);
 		if (!cj) {
 			// New parameter - create default and save
@@ -180,24 +180,24 @@ int param_load(void)
 			break;
 		}
 	}
-	if (save_param) param_save();
+	if (save_param) param_save(list, finename);
 	return 0;
 }
 
 /* Сохранение параметров работы */
-int param_save(void)
+int param_save(vaiable_list list[], const char *finename)
 {
 	vaiable_list *v;
 	cJSON *ja;
-	FILE *f = fopen(RECT_CONFIGURATION, "w");
+	FILE *f = fopen(finename, "w");
 
 	if (!f) {
-		ESP_LOGI(TAG, "Save configuration failed. Can't open file: %s", RECT_CONFIGURATION);
+		ESP_LOGI(TAG, "Save configuration failed. Can't open file: %s", finename);
 		return -1;
 	}
 
 	ja = cJSON_CreateObject();
-	for (v = DEFL_PARAMS; v && v->name; v++) {
+	for (v = list; v && v->name; v++) {
 		cJSON_AddItemToObject(ja, v->name, cJSON_CreateString(v->val));
 	}
 

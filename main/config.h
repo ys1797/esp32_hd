@@ -100,9 +100,9 @@ typedef struct  {
 extern vaiable_list NET_PARAMS[];	// Сетевые параметры
 extern vaiable_list DEFL_PARAMS[];	// Пераметры устройства
 
-int param_default(void);		// Сброс параметров в значение по умолчанию
-int param_load(void);			/* Загрузка и установка параметров работы */
-int param_save(void);			/* Сохранение параметров работы */
+int param_default(vaiable_list list[], const char *finename);	// Сброс параметров в значение по умолчанию
+int param_load(vaiable_list list[], const char *finename);	/* Загрузка и установка параметров работы */
+int param_save(vaiable_list list[], const char *finename);	/* Сохранение параметров работы */
 int checkParam(vaiable_list list[], char *name);	/* Проверка существования параметра */
 int setParam(vaiable_list list[], char *name, char *value); /* Установка  переменной */
 char *getStringParam(vaiable_list list[], char *name);	/* Получение текстовой переменной */

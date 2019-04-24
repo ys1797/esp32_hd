@@ -710,9 +710,9 @@ int param_setup(void)
 	nvs_close(nvs);
 
 	// Загрузка параметров 
-	if (param_load() < 0) {
+	if (param_load(DEFL_PARAMS, RECT_CONFIGURATION) < 0) {
 		// Файл не найден - заполняем значениями по умолчанию
-		return param_default();
+		return param_default(DEFL_PARAMS, RECT_CONFIGURATION);
 	}
 	return ESP_OK;
 }

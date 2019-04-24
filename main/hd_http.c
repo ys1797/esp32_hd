@@ -448,7 +448,7 @@ int httpParamDefault(HttpdConnData *connData)
 	if (checkAuth(connData)) return HTTPD_CGI_DONE;
 
 	send_json_headers(connData);
-	param_default();
+	param_default(DEFL_PARAMS, RECT_CONFIGURATION);
 	json_ok(connData);
 	return HTTPD_CGI_DONE;
 }
@@ -471,7 +471,7 @@ int httpParamSetup(HttpdConnData *connData)
 			else  val = "";
 			setParam(DEFL_PARAMS, var, val);
 		}
-		param_save();
+		param_save(DEFL_PARAMS, RECT_CONFIGURATION);
 		json_ok(connData);
 	} else {
 		json_err(connData);
