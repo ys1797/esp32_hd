@@ -88,10 +88,6 @@ char *Hostname;		// Имя хоста
 char *httpUser;		// Имя пользователя для http
 char *httpPassword;	// Пароль для http
 int httpSecure;		// Спрашивать пароль
-char *smscUser;		// Имя пользователя для smsc
-char *smscHash;		// Хэш пароля smsc
-char *smscPhones;	// Номер телефона для Smsc
-int useSmsc;		// Использовать smsc
 int wsPeriod=5;		// Период обновления данных через websocket
 
 int clockCenterX = screenW/2;
@@ -810,15 +806,21 @@ void sendSMS(char *text)
 {
 	request_t *req;
 	int ret;
-	char *post;
+	char *post, *user, *hash, *phones;
 	int s;
+	if (!getIntParam(NET_PARAMS, "useSmsc")) return;
 
-	if (!useSmsc || !smscUser || !smscHash || !smscPhones) return;
-	s = strlen(smscUser) + strlen(smscHash) + strlen(smscPhones) + strlen(text);
+	user = getStringParam(NET_PARAMS, "smscUser");
+	hash = getStringParam(NET_PARAMS, "smscHash");
+	phones = getStringParam(NET_PARAMS, "smscPhones");
+
+
+	if (!user || !hash || !phones) return;
+	if (strlen(user)<=0 || strlen(hash)<=30 || strlen(phones)<=0) return;
+	s = strlen(user) + strlen(hash) + strlen(phones) + strlen(text);
 	post = malloc(s+30);
 	if (!post) return;
-	sprintf(post, "login=%s&psw=%s&phones=%s&mes=%s", 
-		smscUser, smscHash, smscPhones, text);
+	sprintf(post, "login=%s&psw=%s&phones=%s&mes=%s", user, hash, phones, text);
 
 	ESP_LOGI(TAG, ">> SMS start");
 	req = req_new("https://smsc.ru/sys/send.php"); 
@@ -1624,7 +1626,12 @@ void app_main(void)
 	xTaskCreate(&console_task, "console_task", 8192, NULL, 1, NULL);
 
 	/* Получаем конфигурацию сетевого доступа */
-	get_network_config();
+	param_load(NET_PARAMS, NET_CONFIGURATION);
+	Hostname = getStringParam(NET_PARAMS, "host");
+	httpUser = getStringParam(NET_PARAMS, "user");
+	httpPassword = getStringParam(NET_PARAMS, "pass");
+	httpSecure = getIntParam(NET_PARAMS, "secure");
+	wsPeriod = getIntParam(NET_PARAMS, "wsPeriod");
 
 	/* Настройка wifi */
 	wifi_setup();
