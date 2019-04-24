@@ -32,10 +32,6 @@ extern bool WIFI_scanStarted;
 extern bool WIFI_scanComplete;
 extern wifi_ap_record_t *WIFI_scanResult;
 
-// Получение конфигурации сетевого доступа
-int get_network_config(void);
-// Сохранение конфигурации сетевого доступа
-int set_network_config(char *host, char *user, char *pass, int secure, char *su, char *sh, char *sp, int usesmsc, int wsperiod);
 /* Получение сохраненной конфигурации WiFi точек */
 int get_wifi_config(void);
 int wifi_cmd_ap_set(void);
