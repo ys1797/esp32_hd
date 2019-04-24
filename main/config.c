@@ -36,6 +36,15 @@ License (MIT license):
 /* Сетевые параметры */
 vaiable_list NET_PARAMS[] =
 {
+	{"host",		VARIABLE_STRING, 0,	0,	DEFAULT_HOST,	NULL},
+	{"user",		VARIABLE_STRING, 0,	0,	DEFAULT_USERNAME,NULL},
+	{"pass",		VARIABLE_STRING, 0,	0,	DEFAULT_PASSWORD,NULL},
+	{"secure",		VARIABLE_INT,	 0,	2,	"0",		NULL},
+	{"smscUser",		VARIABLE_STRING, 0,	0,	"",		NULL},
+	{"smscHash",		VARIABLE_STRING, 0,	0,	"",		NULL},
+	{"smscPhones",		VARIABLE_STRING, 0,	0,	"",		NULL},
+	{"useSmsc", 		VARIABLE_INT,	 0,	2,      "0",		NULL},
+	{"wsPeriod", 		VARIABLE_INT,	 0, 	60,	"5",		NULL},
 	{NULL}
 };
 
@@ -140,7 +149,6 @@ int param_load(vaiable_list list[], const char *finename)
 	size = fread(buff, 1, st.st_size, f);
 	buff[size]=0;
 	fclose(f);
-
 	cJSON *root = cJSON_Parse(buff);
 	free(buff);
 	if (!root) return -3;
@@ -154,8 +162,26 @@ int param_load(vaiable_list list[], const char *finename)
 			save_param++;
 			continue;
 		}
-		v->val = strdup(cj->valuestring);
-
+		switch(cj->type) {
+		case cJSON_True:
+			v->val = strdup("1");
+			break;
+		case cJSON_False:		
+			v->val = strdup("0");
+			break;
+		case cJSON_Number:
+			{
+			char b[32];
+			snprintf(b, sizeof(b)-1, "%f", cj->valuedouble);
+			v->val = strdup(b);
+			}
+			break;
+		case cJSON_String:	
+			v->val = strdup(cj->valuestring);
+			break;
+		default:
+			continue;
+		}
 		switch (v->type) {
 		case VARIABLE_CHECKBOX:
 			i = atoi(v->val);
@@ -262,7 +288,7 @@ char *getStringParam(vaiable_list list[], char *name)
 {
 	vaiable_list *v;
 	for (v = list; v && v->name; v++) {
-		if (VARIABLE_STRING == v->type && !strcasecmp(name, v->name)) {
+		if (!strcasecmp(name, v->name)) {
 			if (NULL == v->val) return v->default_val;
 			return v->val;
 		}
