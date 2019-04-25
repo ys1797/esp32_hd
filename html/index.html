@@ -88,7 +88,12 @@ input.buttons {
 .exit{background:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACpElEQVR4nHWTTU8TQRzGn5n/rNtXuxVoWbSmJcYXwGQuFBNP+w0w8AEkPXHDT4LfoF7lAL6QXiDZIF4IlyXeCVEogqFu6Yvbmtnx4LIRo//jJL/fMzPPDEM0Xq22OvT9cvPjx6X5szMf/5gN27bsubm6Gg6PnjYaLwCAA8Cn5eV6YXZ2hTM2nxoddd+Mj1v/gV3r3r153WqtbD16VAcA5tVqq4XZ2ZXm1haGrRa0Uuien3v9dtt5dnrqA8D6xIRlV6tufnJSXuzuQisFAOj3ei/F0PfLze3tGIZSSOfzEmHorgMOGINdrbr5SkVe7OwASoFFuwqVKrO3xaKVHB110yMjEkpBhyGgFBCG6LbbXm5qCrcqFXnx4cPvda3BAFz2+16333cYALwZH7eSluWm83l5BbMwBMIQt548gb+3FyczreH3+143CJyFkxOf/XlJqWzWTd+8Ka9gpjX0YAAdBGBRclcI7zIInMWTEx9AfBwAwLptW6lMxs0kk1J9/w7VboMD4JyDiNAxDK8rhLN4fBzXLK51xRiylQpSponW4SEoAokIxDk4EfRf9fI/0wszM27asuTFzk6cSkQQRBBCoEgkRzh310ol65pgI4IzuZz81miAhyE4Y7FECAHDMGAIgdumKYuGEUvYhm1bY1HyeaMBrnWc2DNNj4hQIJJXAkMIEBE+B4F3HASOGJuerqdyOfl1cxNcazAiMMbQNQyvJ4SjARBj7p1IciMSPUgkJO906uJnp3N0urt7De6ZpvfDMOLbXiuVHKGUO0kkb0QSzjmSQXDEAOBdNls3BoPnRIRhOu0NTNNZiHq+mrVSybqTSrkP83mZTCTwpdd7dX9/fyl+B+9zuVUQlYeJxNJCs/nP7/z67l2rnMnUU4Zx9Pjg4AUA/ALA8B6CbeY2WQAAAABJRU5ErkJggg==) no-repeat; width:16px; height:16px; float:right; margin:-5px -5px 0 0; cursor:pointer}
 
 </style>
+
 <script>
+var Id;
+var extColdConnected=0;
+$.ajaxSetup({async: false});
+
 (function() {
 
   if (window.WebSocket) {
@@ -152,11 +157,36 @@ function websock_init(address, protocol) {
 	$(".uptime").html(d.uptime);
 	$(".MainStatusStr").html(d.MainStatusStr);
 	$(".SetPower").html(d.SetPower+' Вт.');
+	$("#new_power").val(d.SetPower);
         $(".CurPower").html(d.CurPower+' Вт.');
         $(".CurVolts").html(d.CurVolts+' В.');
         $(".CurFreq").html(d.CurFreq+' Гц.');
 	$(".AlarmMode").html(d.AlarmMode);
 	$(".WaterOn").html(d.WaterOn);
+	if (typeof(d.rect_t_stab) != "undefined") {
+		$(".rect_t_stab").html(d.rect_t_stab);
+		$(".rect_t_stab_i").show();
+	} else {
+		$(".rect_t_stab_i").hide();
+	}
+	if (typeof(d.rect_p_shim) != "undefined") {
+		$(".rect_p_shim").html(d.rect_p_shim);
+		$(".rect_p_shim_i").show();
+	} else {
+		$(".rect_p_shim_i").hide();
+	}
+	if (typeof(d.rect_time_stab) != "undefined") {
+		$(".rect_time_stab").html(d.rect_time_stab);
+		$(".rect_time_stab_i").show();
+	} else  {
+		$(".rect_time_stab_i").hide();
+	}
+	if (typeof(d.rect_timer1) != "undefined") {
+		$(".rect_timer1").html(d.rect_timer1);
+		$(".rect_timer1_i").show();
+	} else  {
+		$(".rect_timer1_i").hide();
+	}
 	if (eval(d.TempWaterIn)<0) $(".TempWaterIn").html("Нет данных");
 	else $(".TempWaterIn").html(d.TempWaterIn);
 	if (eval(d.TempWaterOut)<0) $(".TempWaterOut").html("Нет данных");
@@ -315,23 +345,20 @@ showStick = function(level,text) {
 <tbody class="temp_sensors"></tbody>
 
 <tbody>
-<tr><td>Охлаждение: </td><td class="WaterOn bold"></td></tr>
-<tr><td>T охлаждения вход: </td><td class="TempWaterIn bold"></td></tr>
-<tr><td>T охлаждения выход: </td><td class="TempWaterOut bold"></td></tr>
-<tr><td>Поток воды: </td><td class="WaterFlow bold"></td></tr>
+<tr class="extColdInfo" style="display: none;"><td>Охлаждение: </td><td class="WaterOn bold"></td></tr>
+<tr class="extColdInfo" style="display: none;"><td>T охлаждения вход: </td><td class="TempWaterIn bold"></td></tr>
+<tr class="extColdInfo" style="display: none;"><td>T охлаждения выход: </td><td class="TempWaterOut bold"></td></tr>
+<tr class="extColdInfo" style="display: none;"><td>Поток воды: </td><td class="WaterFlow bold"></td></tr>
 <tr><td>Клапан воды: </td><td class="klp_status_0 bold"></td></tr>
 <tr><td>Клапан голов/хвостов: </td><td class="klp_status_1 bold"></td></tr>
 <tr><td>Клапан продукта: </td><td class="klp_status_2 bold"></td></tr>
 <tr><td>Клапан 4: </td><td class="klp_status_3 bold"></td></tr>
-</tbody>
-</table>
-</div>
-
-<div class="modes rectification" style="text-align: left; width: 100%; overflow: auto; margin-bottom: 10px; display: none;">
-<table><tbody>
-<tr><td>Температура стабилизации: </td><td class="bold"></td></tr>
-<tr><td>Шим отбора: </td><td class="bold"></td></tr>
+<tr class="rect_time_stab_i"><td>Время стабилизации: </td><td class="bold rect_time_stab"></td></tr>
+<tr class="rect_timer1_i"><td>Таймер ре-стабилизации: </td><td class="bold rect_timer1"></td></tr>
+<tr class="rect_t_stab_i"><td>Температура стабилизации: </td><td class="bold rect_t_stab"></td></tr>
+<tr class="rect_p_shim_i"><td>Шим отбора: </td><td class="bold rect_p_shim"></td></tr>
 </tbody></table>
+
 <input type="button" class="i_start" value="Запустить" style="display: none; background: #4040ff; display: none;" onclick="StartProcess();" />
 <input type="button" class="i_end" value="Закончить" style="background: #ff4040; display: none;" onclick="EndProcess();" />
 </div>
@@ -367,7 +394,7 @@ showStick = function(level,text) {
 <td class="ta_l"><input type="text" id="klp_shim_3" maxlength="4" size="4" value="10"/> сек.</td>
 <td class="ta_l"><input type="text" id="klp_on_3" maxlength="4" size="4" value="50"/> %</td>
 <td><input type="button" onclick="klp_on(3);" style="color: green;" value="Включить" />
-<input type="button" onclick="klp_off(3);" style="color:red;"value="Выключить" /></td>
+<input type="button" onclick="klp_off(3);" style="color:red;" value="Выключить" /></td>
 <td><input type="button" onclick="klp_shim_on(3);" value="Активировать Шим" /></td></tr>
 </tbody></table>
 </div>
@@ -586,7 +613,7 @@ showStick = function(level,text) {
 </div></div>
 
 <div class="footer">
-<span class="ta_l" style="padding-left: 15px;">hd_esp32 Copyright &copy; 2018,
+<span class="ta_l" style="padding-left: 15px;">hd_esp32 Copyright &copy; 2019,
 </span>
 <span class="Version"></span>
 <span class="usedBytes"></span>
@@ -596,8 +623,6 @@ showStick = function(level,text) {
 
 </div>
 <script>
-var Id;
-$.ajaxSetup({async: false});
 
 switch_mode = function(new_mode) {
   $("#sw_mode").hide();
@@ -711,6 +736,31 @@ disp_main = function() {
 	$(".CurVolts").html(d.CurVolts+' В.');
 	$(".CurFreq").html(d.CurFreq+' Гц.');
 	$(".WaterOn").html(d.WaterOn);
+	if (typeof(d.rect_t_stab) != "undefined") {
+		$(".rect_t_stab").html(d.rect_t_stab);
+		$(".rect_t_stab_i").show();
+	} else {
+		$(".rect_t_stab_i").hide();
+	}
+	if (typeof(d.rect_p_shim) != "undefined") {
+		$(".rect_p_shim").html(d.rect_p_shim);
+		$(".rect_p_shim_i").show();
+	} else {
+		$(".rect_p_shim_i").hide();
+	}
+	if (typeof(d.rect_time_stab) != "undefined") {
+		$(".rect_time_stab").html(d.rect_time_stab);
+		$(".rect_time_stab_i").show();
+	} else  {
+		$(".rect_time_stab_i").hide();
+	}
+	if (typeof(d.rect_timer1) != "undefined") {
+		$(".rect_timer1").html(d.rect_timer1);
+		$(".rect_timer1_i").show();
+	} else  {
+		$(".rect_timer1_i").hide();
+	}
+
 	if (eval(d.TempWaterIn)<0) $(".TempWaterIn").html("Нет данных");
 	else $(".TempWaterIn").html(d.TempWaterIn);
 	if (eval(d.TempWaterOut)<0) $(".TempWaterOut").html("Нет данных");
@@ -720,6 +770,8 @@ disp_main = function() {
 	$("#sw_mode").show();
 	$("#prev_status").show();
 	$("#next_status").show();
+
+	if (extColdConnected) $(".extColdInfo").show();
         var t = $('.temp_sensors');
         t.empty();
         for (var i in d.sensors) {
@@ -744,9 +796,6 @@ disp_main = function() {
 	switch(eval(d.MainMode)) {
 	case 2:
 		$('.distill').show();
-		break;
-	case 3:
-		$('.rectification').show();
 		break;
 	case 10:
 		$('.testklp').show();
