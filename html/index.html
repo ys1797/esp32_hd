@@ -87,6 +87,14 @@ input.buttons {
 .last {background-color:#CBECFA; border:1px solid #15A6E3;}
 .exit{background:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACpElEQVR4nHWTTU8TQRzGn5n/rNtXuxVoWbSmJcYXwGQuFBNP+w0w8AEkPXHDT4LfoF7lAL6QXiDZIF4IlyXeCVEogqFu6Yvbmtnx4LIRo//jJL/fMzPPDEM0Xq22OvT9cvPjx6X5szMf/5gN27bsubm6Gg6PnjYaLwCAA8Cn5eV6YXZ2hTM2nxoddd+Mj1v/gV3r3r153WqtbD16VAcA5tVqq4XZ2ZXm1haGrRa0Uuien3v9dtt5dnrqA8D6xIRlV6tufnJSXuzuQisFAOj3ei/F0PfLze3tGIZSSOfzEmHorgMOGINdrbr5SkVe7OwASoFFuwqVKrO3xaKVHB110yMjEkpBhyGgFBCG6LbbXm5qCrcqFXnx4cPvda3BAFz2+16333cYALwZH7eSluWm83l5BbMwBMIQt548gb+3FyczreH3+143CJyFkxOf/XlJqWzWTd+8Ka9gpjX0YAAdBGBRclcI7zIInMWTEx9AfBwAwLptW6lMxs0kk1J9/w7VboMD4JyDiNAxDK8rhLN4fBzXLK51xRiylQpSponW4SEoAokIxDk4EfRf9fI/0wszM27asuTFzk6cSkQQRBBCoEgkRzh310ol65pgI4IzuZz81miAhyE4Y7FECAHDMGAIgdumKYuGEUvYhm1bY1HyeaMBrnWc2DNNj4hQIJJXAkMIEBE+B4F3HASOGJuerqdyOfl1cxNcazAiMMbQNQyvJ4SjARBj7p1IciMSPUgkJO906uJnp3N0urt7De6ZpvfDMOLbXiuVHKGUO0kkb0QSzjmSQXDEAOBdNls3BoPnRIRhOu0NTNNZiHq+mrVSybqTSrkP83mZTCTwpdd7dX9/fyl+B+9zuVUQlYeJxNJCs/nP7/z67l2rnMnUU4Zx9Pjg4AUA/ALA8B6CbeY2WQAAAABJRU5ErkJggg==) no-repeat; width:16px; height:16px; float:right; margin:-5px -5px 0 0; cursor:pointer}
 
+.klp_inp {
+	border: #3C3C3C 1px solid;
+	height: 14px;
+        font-size: 10pt;
+	margin-left: 10px;
+        border-spacing: 1px;
+        border-collapse: separate;
+}
 </style>
 
 <script>
@@ -210,6 +218,10 @@ function websock_init(address, protocol) {
 			else html = "Закрыт";
 		}
 		$(".klp_status_"+k.id).html(html);
+
+		if (!eval($(".klp_shim_"+k.id).val())) $(".klp_shim_"+k.id).val(k.pwm_time);
+		if (!eval($(".klp_on_"+k.id).val())) $(".klp_on_"+k.id).val(k.pwm_percent);
+
 	}
 	if (0 == eval(d.MainStatus)) {
 		$('.i_start').show();
@@ -329,6 +341,7 @@ showStick = function(level,text) {
 </td></tr>
 <tr><td>Авария: </td><td class="AlarmMode bold"></td></tr>
 <tr><td>Текущая мощность: </td><td class="CurPower bold"></td></tr>
+<tr><td>Сеть: </td ><td class="bold"><span class="CurVolts"></span> <span class="CurFreq"></span></td></tr>
 <tr><td>Заданая мощность: </td><td><span class="SetPower bold"></span>
 <input style="margin-left: 10px;" type="text" size="6" maxlength="8" name="new_power" id="new_power" />
 <input class="menu" type="button" value="установить" onclick="setPower(0);" />
@@ -339,8 +352,6 @@ showStick = function(level,text) {
 <input class="menu" type="button" value=" -100 " onclick="setPower(-100);" />
 <input class="menu" type="button" value=" -10 " onclick="setPower(-10);" />
 </td></tr>
-<tr><td>Напряжение: </td><td class="CurVolts bold"></td></tr>
-<tr><td>Частота сети: </td><td class="CurFreq bold"></td></tr>
 </tbody>
 <tbody class="temp_sensors"></tbody>
 
@@ -349,10 +360,37 @@ showStick = function(level,text) {
 <tr class="extColdInfo" style="display: none;"><td>T охлаждения вход: </td><td class="TempWaterIn bold"></td></tr>
 <tr class="extColdInfo" style="display: none;"><td>T охлаждения выход: </td><td class="TempWaterOut bold"></td></tr>
 <tr class="extColdInfo" style="display: none;"><td>Поток воды: </td><td class="WaterFlow bold"></td></tr>
-<tr><td>Клапан воды: </td><td class="klp_status_0 bold"></td></tr>
-<tr><td>Клапан голов/хвостов: </td><td class="klp_status_1 bold"></td></tr>
-<tr><td>Клапан продукта: </td><td class="klp_status_2 bold"></td></tr>
-<tr><td>Клапан 4: </td><td class="klp_status_3 bold"></td></tr>
+
+<tr><td>Клапан воды: </td><td><span class="klp_status_0 bold"></span>
+<input type="button" onclick="klp_on(0);" style="margin-left: 10px; color: green;" value="On" />
+<input type="button" onclick="klp_off(0);" style="margin-left: 10px; color:red;" value="Off" />
+<input class="klp_inp klp_shim_0" type="text" id="k_shim_0" maxlength="4" size="4" value="0" /> сек.
+<input class="klp_inp klp_on_0" type="text" id="k_on_0" maxlength="4" size="4" value="0" />%
+<input style="margin-left: 10px;" type="button" onclick="klp_shim_on(0, 'k_shim_0', 'k_on_0');" value="Шим" />
+</td></tr>
+
+<tr><td>Клапан голов/хвостов: </td><td><span class="klp_status_1 bold"></span>
+<input type="button" onclick="klp_on(1);" style="margin-left: 10px; color: green;" value="On" />
+<input type="button" onclick="klp_off(1);" style="margin-left: 10px; color:red;" value="Off" />
+<input class="klp_inp klp_shim_1" type="text" id="k_shim_1" maxlength="4" size="4" value="0" /> сек.
+<input class="klp_inp klp_on_1" type="text" id="k_on_1" maxlength="4" size="4" value="0" />%
+<input style="margin-left: 10px;" type="button" onclick="klp_shim_on(1, 'k_shim_1', 'k_on_1');" value="Шим" />
+</td></tr>
+<tr><td>Клапан продукта: </td><td><span class="klp_status_2 bold"></span>
+<input type="button" onclick="klp_on(2);" style="margin-left: 10px; color: green;" value="On" />
+<input type="button" onclick="klp_off(2);" style="margin-left: 10px; color:red;" value="Off" />
+<input class="klp_inp klp_shim_2" type="text" id="k_shim_2" maxlength="4" size="4" value="0" /> сек.
+<input class="klp_inp klp_on_2" type="text" id="k_on_2" maxlength="4" size="4" value="0" />%
+<input style="margin-left: 10px;" type="button" onclick="klp_shim_on(2, 'k_shim_2', 'k_on_2');" value="Шим" />
+</td></tr>
+<tr><td>Клапан 4: </td><td><span class="klp_status_3 bold"></span>
+<input type="button" onclick="klp_on(3);" style="margin-left: 10px; color: green;" value="On" />
+<input type="button" onclick="klp_off(3);" style="margin-left: 10px; color:red;" value="Off" />
+<input class="klp_inp klp_shim_3" type="text" id="k_shim_3" maxlength="4" size="4" value="0" /> сек.
+<input class="klp_inp klp_on_3" type="text" id="k_on_3" maxlength="4" size="4" value="0" />%
+<input style="margin-left: 10px;" type="button" onclick="klp_shim_on(3, 'k_shim_3', 'k_on_3');" value="Шим" />
+</td></tr>
+
 <tr class="rect_time_stab_i"><td>Время стабилизации: </td><td class="bold rect_time_stab"></td></tr>
 <tr class="rect_timer1_i"><td>Таймер ре-стабилизации: </td><td class="bold rect_timer1"></td></tr>
 <tr class="rect_t_stab_i"><td>Температура стабилизации: </td><td class="bold rect_t_stab"></td></tr>
@@ -373,29 +411,29 @@ showStick = function(level,text) {
 <tr><th>Клапан</th><th>Назначение</th><th>Состояние</th><th>Период шим</th><th>процент вкл.</th><th colspan="2"></th></tr>
 </thead><tbody>
 <tr><td>#1 </td><td class="ta_l bold">Клапан воды</td><td class="klp_status_0"></td>
-<td class="ta_l"><input type="text" id="klp_shim_0" maxlength="4" size="4" value="10"/> сек.</td>
-<td class="ta_l"><input type="text" id="klp_on_0" maxlength="4" size="4" value="50"/> %</td>
+<td class="ta_l"><input type="text" class="klp_shim_0" id="klp_shim_0" maxlength="4" size="4" value="10"/> сек.</td>
+<td class="ta_l"><input type="text" class="klp_on_0" id="klp_on_0" maxlength="4" size="4" value="50"/> %</td>
 <td><input type="button" onclick="klp_on(0);" style="color: green;" value="Включить" />
 <input type="button" onclick="klp_off(0);" style="color:red;" value="Выключить" /></td>
-<td><input type="button" onclick="klp_shim_on(0);" value="Активировать Шим" /></td></tr>
+<td><input type="button" onclick="klp_shim_on(0,'klp_shim_0','klp_on_0');" value="Активировать Шим" /></td></tr>
 <tr><td>#2 </td><td class="ta_l bold">Клапан голов/хвостов</td><td class="klp_status_1"></td>
-<td class="ta_l"><input type="text" id="klp_shim_1" maxlength="4" size="4" value="10"/> сек.</td>
-<td class="ta_l"><input type="text" id="klp_on_1" maxlength="4" size="4" value="50"/> %</td>
+<td class="ta_l"><input type="text" class="klp_shim_1" id="klp_shim_1" maxlength="4" size="4" value="10"/> сек.</td>
+<td class="ta_l"><input type="text" class="klp_on_1" id="klp_on_1" maxlength="4" size="4" value="50"/> %</td>
 <td><input type="button" onclick="klp_on(1);" style="color: green;" value="Включить" />
 <input type="button" onclick="klp_off(1);" style="color:red;" value="Выключить" /></td>
-<td><input type="button" onclick="klp_shim_on(1);" value="Активировать Шим" /></td></tr>
+<td><input type="button" onclick="klp_shim_on(1,'klp_shim_1','klp_on_1');" value="Активировать Шим" /></td></tr>
 <tr><td>#3 </td><td class="ta_l bold">Клапан продукта</td><td class="klp_status_2"></td>
-<td class="ta_l"><input type="text" id="klp_shim_2" maxlength="4" size="4" value="10"/> сек.</td>
-<td class="ta_l"><input type="text" id="klp_on_2" maxlength="4" size="4" value="50"/> %</td>
+<td class="ta_l"><input type="text" class="klp_shim_2" id="klp_shim_2" maxlength="4" size="4" value="10"/> сек.</td>
+<td class="ta_l"><input type="text" class="klp_on_2" id="klp_on_2" maxlength="4" size="4" value="50"/> %</td>
 <td><input type="button" onclick="klp_on(2);" style="color: green;" value="Включить" />
 <input type="button" onclick="klp_off(2);" style="color:red;" value="Выключить" /></td>
-<td><input type="button" onclick="klp_shim_on(2);" value="Активировать Шим" /></td></tr>
+<td><input type="button" onclick="klp_shim_on(2,'klp_shim_2','klp_on_2');" value="Активировать Шим" /></td></tr>
 <tr><td>#4 </td><td class="ta_l bold">Дополнительный</td><td class="klp_status_3"></td>
-<td class="ta_l"><input type="text" id="klp_shim_3" maxlength="4" size="4" value="10"/> сек.</td>
-<td class="ta_l"><input type="text" id="klp_on_3" maxlength="4" size="4" value="50"/> %</td>
+<td class="ta_l"><input type="text" class="klp_shim_3" id="klp_shim_3" maxlength="4" size="4" value="10"/> сек.</td>
+<td class="ta_l"><input type="text" class="klp_on_3" id="klp_on_3" maxlength="4" size="4" value="50"/> %</td>
 <td><input type="button" onclick="klp_on(3);" style="color: green;" value="Включить" />
 <input type="button" onclick="klp_off(3);" style="color:red;" value="Выключить" /></td>
-<td><input type="button" onclick="klp_shim_on(3);" value="Активировать Шим" /></td></tr>
+<td><input type="button" onclick="klp_shim_on(3,'klp_shim_3','klp_on_3');" value="Активировать Шим" /></td></tr>
 </tbody></table>
 </div>
 
@@ -691,8 +729,8 @@ klp_disp = function(id) {
 		else html = "Закрыт";
 	}
 	$(".klp_status_"+k.id).html(html);
-	$("#klp_shim_"+k.id).val(k.pwm_time);
-	$("#klp_on_"+k.id).val(k.pwm_percent);
+	$(".klp_shim_"+k.id).val(k.pwm_time);
+	$(".klp_on_"+k.id).val(k.pwm_percent);
         showStick(k.err, k.msg);
   }, 'json');
 }
@@ -711,11 +749,11 @@ klp_off = function(id) {
 	klp_disp(id);
  }, 'json');
 }
-klp_shim_on = function(id) {
+klp_shim_on = function(id, n1, n2) {
  $.post('/klp_shim_on', {
         'id': id,
-        'period': $('#klp_shim_'+id).val(),
-        'klp_on': $('#klp_on_'+id).val()
+        'period': $('#'+n1).val(),
+        'klp_on': $('#'+n2).val()
  }, function(d) {
 	klp_disp(id);
  }, 'json');
@@ -791,6 +829,9 @@ disp_main = function() {
                         else html = "Закрыт";
                 }
                 $(".klp_status_"+k.id).html(html);
+	        $(".klp_shim_"+k.id).val(k.pwm_time);
+	        $(".klp_on_"+k.id).val(k.pwm_percent);
+
         }
 
 	switch(eval(d.MainMode)) {
