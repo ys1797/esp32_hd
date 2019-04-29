@@ -7,4 +7,4 @@ cp build/bootloader/bootloader.bin ./
 cp build/partitions.bin ./
 cp build/esp32_hd.bin ./
 cp build/spiffs.img ./
-zip fw_esp32_v02.zip bootloader.bin partitions.bin esp32_hd.bin spiffs.img
+./zip fw_esp32_v06.zip bootloader.bin partitions.bin esp32_hd.bin spiffs.img
