@@ -905,20 +905,44 @@ void setStatus(int next)
 	case MODE_DISTIL:
 		// Режим дистилляции
 		if (next) {
-			if (MainStatus == START_WAIT) MainStatus = PROC_START;
-			else if (MainStatus == PROC_START) MainStatus = PROC_RAZGON;
-			else if (MainStatus == PROC_RAZGON) MainStatus = PROC_DISTILL;
-			else if (MainStatus == PROC_DISTILL) MainStatus = PROC_WAITEND;
-			else if (MainStatus == PROC_WAITEND) MainStatus = PROC_END;
+			if (MainStatus == START_WAIT) {
+				MainStatus = PROC_START;
+			} else if (MainStatus == PROC_START) {
+				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
+				MainStatus = PROC_RAZGON;
+			} else if (MainStatus == PROC_RAZGON) {
+				openKlp(klp_water);		// Открытие клапана воды
+				setPower(getIntParam(DEFL_PARAMS, "powerDistil"));	// Мощность дистилляции
+				MainStatus = PROC_DISTILL;
+			} else if (MainStatus == PROC_DISTILL) {
+				setPower(0);		// Снятие мощности с тэна
+				secTempPrev = uptime_counter;
+				MainStatus = PROC_WAITEND;
+			} else if (MainStatus == PROC_WAITEND) {
+				closeAllKlp();		// Закрытие всех клапанов.
+				MainStatus = PROC_END;
+			}
 		} else {
-			if (MainStatus == PROC_START) MainStatus = START_WAIT;
-			else if (MainStatus == PROC_RAZGON) MainStatus = PROC_START;
-			else if (MainStatus == PROC_DISTILL) MainStatus = PROC_RAZGON;
-			else if (MainStatus == PROC_WAITEND) MainStatus = PROC_DISTILL;
-			else if (MainStatus == PROC_END) MainStatus = PROC_WAITEND;
+			if (MainStatus == PROC_RAZGON) {
+				setPower(0);		// Снятие мощности с тэна
+				closeAllKlp();		// Закрытие всех клапанов.
+				MainStatus = START_WAIT;
+			} else if (MainStatus == PROC_DISTILL) {
+				closeAllKlp();		// Закрытие всех клапанов.
+				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
+				MainStatus = PROC_RAZGON;
+			} else if (MainStatus == PROC_WAITEND) {
+				openKlp(klp_water);		// Открытие клапана воды
+				setPower(getIntParam(DEFL_PARAMS, "powerDistil"));	// Мощность дистилляции
+				MainStatus = PROC_DISTILL;
+			} else if (MainStatus == PROC_END) {
+				openKlp(klp_water);		// Открытие клапана воды
+				secTempPrev = uptime_counter;
+				MainStatus = PROC_WAITEND;
+			}
 		}
-
 		break;
+
 	case MODE_RECTIFICATION:
 		// Режим ректификации
 		if (next) {
@@ -965,15 +989,35 @@ void setStatus(int next)
 				MainStatus = PROC_END;
 			}
 		} else {
-			if (MainStatus == PROC_START) MainStatus = START_WAIT;
-			else if (MainStatus == PROC_RAZGON) MainStatus = PROC_START;
-			else if (MainStatus == PROC_STAB) MainStatus = PROC_RAZGON;
-			else if (MainStatus == PROC_GLV) MainStatus = PROC_STAB;
-			else if (MainStatus == PROC_T_WAIT) MainStatus = PROC_GLV;
-			else if (MainStatus == PROC_SR) MainStatus = PROC_GLV;
-			else if (MainStatus == PROC_HV) MainStatus = PROC_SR;
-			else if (MainStatus == PROC_WAITEND) MainStatus = PROC_HV;
-			else if (MainStatus == PROC_END) MainStatus = PROC_WAITEND;
+			if (MainStatus == PROC_RAZGON) {
+				// Из разгона в режим ожидания запуска 
+				setPower(0);		// Снятие мощности с тэна
+				closeAllKlp();		// Закрытие всех клапанов.
+        			MainStatus = START_WAIT;
+			} else if (MainStatus == PROC_STAB) {
+				// Из стабилизации в режим разгона
+				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
+				MainStatus = PROC_RAZGON;
+			} else if (MainStatus == PROC_GLV) {
+				MainStatus = PROC_STAB;
+			} else if (MainStatus == PROC_T_WAIT) {
+				MainStatus = PROC_GLV;
+			} else if (MainStatus == PROC_SR) {
+				MainStatus = PROC_GLV;
+			} else if (MainStatus == PROC_HV) {
+				MainStatus = PROC_SR;
+			} else if (MainStatus == PROC_WAITEND) {
+				// Переходим к отбору хвостов
+				setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
+				float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
+				topen = (float)(timeChimRectOtbGlv)*90/100;
+				startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
+				MainStatus = PROC_HV;
+			} else if (MainStatus == PROC_END) {
+				openKlp(klp_water);	// Открытие клапана воды
+				secTempPrev = uptime_counter;
+				MainStatus = PROC_WAITEND;
+			}
 		}
 		break;
 	default:
@@ -983,12 +1027,12 @@ void setStatus(int next)
 }
 
 /*
- * Функция возвращает значение ШИМ для отборв по "шпоре" (температуре в кубе)
+ * Функция возвращает значение ШИМ для отборв по "шпоре" (температуре)
  */
 int16_t GetSrPWM(void)
 {
 	int16_t found = ProcChimSR;
-	double t = getCubeTemp();
+	double t = getTube20Temp();
 
 	for (int i=1; i<getIntParam(DEFL_PARAMS, "cntCHIM"); i++) {
 		if (autoPWM[i-1].temp <= t && autoPWM[i].temp > t) {
@@ -1182,7 +1226,7 @@ void Rectification(void)
 
 	case PROC_SR:
 		// Отбор СР
-		t = getCubeTemp();
+		t = getTube20Temp();
 
 		int minProcChimOtbSR = getIntParam(DEFL_PARAMS, "minProcChimOtbSR");
 
@@ -1365,7 +1409,6 @@ void closeAllKlp(void)
 		ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 0);
 		ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
 	        LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 0;
-		Klp[i].open_time = 0;
 		Klp[i].is_open = false;
 		Klp[i].is_pwm = false;
 	}
@@ -1406,7 +1449,6 @@ void closeKlp(int i)
 	ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 0);
 	ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
         LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 0;
-	Klp[i].open_time = 0;
 	Klp[i].timer_sec = 0;
 	Klp[i].is_open = false;
 	Klp[i].is_pwm = false;
