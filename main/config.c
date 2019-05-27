@@ -68,7 +68,6 @@ vaiable_list DEFL_PARAMS[] =
 	{"p_MPX5010",		VARIABLE_INT,	0,	100,	"0",	NULL},
 	{"timeStabKolonna",	VARIABLE_INT,	0,	3500,	"900",	NULL},
 	{"timeRestabKolonna",	VARIABLE_INT,	0,	3500,	"1800", NULL},
-	{"pShim", 		VARIABLE_INT,	0,	101,	"90",	NULL},
 	{"klpSilentNode", 	VARIABLE_CHECKBOX, 0,	1,	"1",	NULL},
 	{"urovenProvodimostSR", VARIABLE_INT,	0,	1000,	"0",	NULL},
 	{"cntCHIM", 		VARIABLE_INT,	-100,	100,	"-4",	NULL},
@@ -80,6 +79,9 @@ vaiable_list DEFL_PARAMS[] =
 
 	{"powerDistil",		VARIABLE_INT,	0,	15000,	"1000", NULL},
 	{"tempEndDistil",	VARIABLE_FLOAT,	0,	120,	"99.5", NULL},
+
+	{"processGpio",		VARIABLE_INT,	0,	40,	"0",	NULL},
+	{"klp1_isPWM", 		VARIABLE_CHECKBOX, 0,	1,	"0",	NULL},
 
 	{NULL}
 };

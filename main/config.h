@@ -39,7 +39,7 @@ License (MIT license):
 #define DEFAULT_PASSWORD "12345"
 
 #define FIRMWARE_UPDATE_URL "http://hd.rus.net/"
-#define ESP32_VERSION "0.6.0"
+#define ESP32_VERSION "0.6.1"
 
 #define WiFiStateConnected      0
 #define WiFiStateWaitToConnect  1
