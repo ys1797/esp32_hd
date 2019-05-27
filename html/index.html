@@ -538,6 +538,12 @@ showStick = function(level,text) {
 <td class="ta_l"><input id="alarmMPX5010" type="text" size="8" maxlength="8"></td></tr>
 <tr><td class="ta_r">Звук при переключении режимов: </td>
 <td class="ta_l"><input id="beepChangeState" type="checkbox" value=1></td></tr>
+<tr><td class="ta_r">Gpio включенный во время процесса (0 - нет): </td>
+<td class="ta_l"><input id="processGpio" type="text" size="8" maxlength="8" value="0"></td></tr>
+<tr><td colspan="2" class="ta_c">
+<tr><td class="ta_r">Вместа клапана воды используется регулятор: </td>
+<td class="ta_l"><input id="klp1_isPWM" type="checkbox" value=1></td></tr>
+
 
 <tr><td colspan="2" class="ta_c">
 <input type="button" value="Восстановить по умолчанию" onclick="default_parameters();"/>
@@ -902,9 +908,10 @@ default_parameters = function() {
 }
 
 set_parameters = function() {
-  var beepChangeState=0, klpSilentNode=0;
+  var beepChangeState=0, klpSilentNode=0, klp1_isPWM=0;
   if($('#beepChangeState').is(':checked')) beepChangeState=1;
   if($('#klpSilentNode').is(':checked')) klpSilentNode=1;
+  if($('#klp1_isPWM').is(':checked')) klp1_isPWM=1;
 
   $.post('/saveparam', {
         'maxPower': $("#maxPower").val(),
@@ -935,6 +942,8 @@ set_parameters = function() {
         'tempEndDistil': $("#tempEndDistil").val(),
 	'alarmMPX5010': $("#alarmMPX5010").val(),
 	'beepChangeState': beepChangeState,
+	'klp1_isPWM': klp1_isPWM,
+	'processGpio': $("#processGpio").val(),
    }, function(d) {
        disp_setting();
    }, 'json');
@@ -974,7 +983,9 @@ disp_setting = function() {
 	$("#alarmMPX5010").val(d.alarmMPX5010);
 	if (eval(d.beepChangeState)) $('#beepChangeState').prop('checked', 1);
         else $('#beepChangeState').removeAttr('checked');
-
+	if (eval(d.klp1_isPWM)) $('#klp1_isPWM').prop('checked', 1);
+        else $('#klp1_isPWM').removeAttr('checked');
+	$("#processGpio").val(d.processGpio);
   }, 'json');
   $("#param_setup").show();
   window.location.hash = '#param_setup';
