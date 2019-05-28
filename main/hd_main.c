@@ -395,12 +395,12 @@ void pzem_task(void *arg)
 		if (AlarmMode & ~(ALARM_FREQ|ALARM_NOLOAD)) {
 			// При аварии выключаем нагрев
 			myBeep(false);
-			SetPower = 0;
+			setPower(0);
 		}
 
 		if (SetPower) {
-			if (MainMode == MODE_IDLE) SetPower = 0;	// В режиме монитора выключаем нагрев
-			if (PROC_END == MainStatus) SetPower = 0; // Режим окончания работы - отключение нагрузки
+			if (MainMode == MODE_IDLE) setPower(0);	// В режиме монитора выключаем нагрев
+			if (PROC_END == MainStatus) setPower(0); // Режим окончания работы - отключение нагрузки
 		}
 
 		if (CurPower<5 && Hpoint<=TRIAC_GATE_MAX_CYCLES && SetPower > 0) {
@@ -692,6 +692,31 @@ void IRAM_ATTR gpio_isr_handler(void* arg)
 	GPIO.status_w1tc = intr_st;
 } 
 
+/* Настройка и установка состояния GPIO для работы */
+void setProcessGpio(int on)
+{
+	static char is_configured = 0;
+	uint32_t pin_sel = 0;
+	uint32_t gpio = getIntParam(DEFL_PARAMS, "processGpio");
+	if (gpio <= 0 && gpio > 64)   return;
+
+	pin_sel = 1<<gpio;
+
+	if (!is_configured) {
+		// Configure output gpio
+		gpio_config_t io_conf;
+		io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
+		io_conf.mode = GPIO_MODE_OUTPUT;
+		io_conf.pin_bit_mask = pin_sel;
+		io_conf.pull_down_en = 0;
+		io_conf.pull_up_en = 0;
+		gpio_config(&io_conf);
+		is_configured++;
+	}
+	gpio_set_level(gpio, on);	
+
+}
+
 /* Загрузка и установка параметров работы */
 int param_setup(void)
 {
@@ -842,6 +867,10 @@ void setPower(int16_t pw)
 	nvs_handle nvs;
 	if (pw > getIntParam(DEFL_PARAMS, "maxPower")) SetPower = getIntParam(DEFL_PARAMS, "maxPower");
 	else SetPower = pw;
+
+	if (pw>0) setProcessGpio(1);
+	else setProcessGpio(0);
+
 	if (nvs_open("storage", NVS_READWRITE, &nvs) == ESP_OK) {
 		nvs_set_i16(nvs, "SetPower", SetPower);
 		nvs_close(nvs);
