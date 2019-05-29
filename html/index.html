@@ -502,8 +502,6 @@ showStick = function(level,text) {
 <td class="ta_l"><input id="timeStabKolonna" type="text" size="6" maxlength="6" /> Сек.</td></tr>
 <tr><td class="ta_r">Таймаут для повторной стабилизации колонны: </td>
 <td class="ta_l"><input id="timeRestabKolonna" type="text" size="8" maxlength="8"> Сек.</td></tr>
-<tr><td class="ta_r">Процент 100 Гц шим для защиты клапанов от перегрева: </td>
-<td class="ta_l"><input id="pShim" type="text" size="4" maxlength="4" /> В.</td></tr>
 
 <tr><td class="ta_r">Уровень проводимости, меньше которого переходим к СР: </td>
 <td class="ta_l"><input id="urovenProvodimostSR" type="text" size="6" maxlength="6" /></td></tr>
@@ -926,7 +924,6 @@ set_parameters = function() {
 	'p_MPX5010': $("#p_MPX5010").val(),
 	'timeStabKolonna': $("#timeStabKolonna").val(),
 	'timeRestabKolonna': $("#timeRestabKolonna").val(),
-	'pShim': $("#pShim").val(),
 	'klpSilentNode': klpSilentNode,
 	'urovenProvodimostSR': $("#urovenProvodimostSR").val(),
 	'cntCHIM': $("#cntCHIM").val(),
@@ -966,7 +963,6 @@ disp_setting = function() {
 	$("#p_MPX5010").val(d.p_MPX5010);
 	$("#timeStabKolonna").val(d.timeStabKolonna);
 	$("#timeRestabKolonna").val(d.timeRestabKolonna);
-	$("#pShim").val(d.pShim);
 	if (eval(d.klpSilentNode)) $('#klpSilentNode').prop('checked', 1);
         else $('#klpSilentNode').removeAttr('checked');
 	$("#urovenProvodimostSR").val(d.urovenProvodimostSR);
