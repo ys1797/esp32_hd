@@ -415,7 +415,7 @@ bool PZEMv30_setPowerAlarm(uint16_t watts)
  *
  * @return success
 */
-bool PZEMv30_updateValues()
+bool PZEMv30_updateValues(void)
 {
 	// static uint8_t buffer[] = {0x00, CMD_RIR, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00};
 	static uint8_t response[25];
