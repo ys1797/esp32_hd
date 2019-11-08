@@ -74,7 +74,6 @@ License (MIT license):
 #define GPIO_INPUT_PIN_SEL  (1<<GPIO_DETECT_ZERO) 
 #define GPIO_OUTPUT_PIN_SEL  (1<<GPIO_BEEP)
 
-uint8_t PZEM_ip[4] = {192,168,1,1};
 volatile int32_t Hpoint = HMAX;
 
 
@@ -273,116 +272,19 @@ void display_task(void *pvParameter)
 
 
 
-
-/* Расчет CRC для pzem */
-static uint8_t PZEM_crc(uint8_t *data, uint8_t sz)
-{
-	uint16_t crc = 0;
-	uint8_t i;
-	for (i=0; i<sz; i++) crc += *data++;
-	return (uint8_t)(crc & 0xFF);
-}
-
-static int PZEM_command(uint8_t cmd, uint8_t data, uint8_t resp, uint8_t *result)
-{
-	struct PZEMCommand pzem;
-	uint8_t *bytes;
-	uint8_t buf[PZEM_RESPONSE_SIZE];
-	int len, i, readed = 0, ret = -2;
-
-	pzem.command = cmd;
-        for(i=0; i<sizeof(pzem.addr); i++) pzem.addr[i] = PZEM_ip[i];
-        pzem.data = data;
-        bytes = (uint8_t*)&pzem;
-        pzem.crc = PZEM_crc(bytes, sizeof(pzem) - 1);
-
-	uart_flush(UART_NUM_1);
-	uart_write_bytes(UART_NUM_1, (const char*) bytes, sizeof(pzem));
-
-	for (i = 0; i < 2; i++) {
-		len = uart_read_bytes(UART_NUM_1, &buf[readed], sizeof(buf)-readed,
-			PZEM_DEFAULT_READ_TIMEOUT / portTICK_RATE_MS);
-                readed += len;
-                if (readed < PZEM_RESPONSE_SIZE) continue;
-                if (buf[6] != PZEM_crc(buf, readed-1)) {
-                        ret = -1;
-                        break;
-                }
-                if (buf[0] != resp) {
-                        ret = -1;
-                        break;
-                }
-		if (result) {
-                        for (i=0; i<PZEM_RESPONSE_DATA_SIZE; i++) {
-                                result[i] = buf[1 + i];
-                        }
-                }
-                ret = 0;
-                break;
-	}
-	return ret;
-}
-
-float PZEM_setAddress(void)
-{
-	return PZEM_command(PZEM_SET_ADDRESS, 0, RESP_SET_ADDRESS, NULL);
-}
-
-float PZEM_voltage(void)
-{
-        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
-        if (PZEM_command(PZEM_VOLTAGE, 0, RESP_VOLTAGE, data)) {
-                return PZEM_ERROR_VALUE;
-        }
-        return (data[0] << 8) + data[1] + (data[2] / 10.0);
-}
-
-float PZEM_current(void)
-{
-        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
-        if (PZEM_command(PZEM_CURRENT, 0, RESP_CURRENT, data)) {
-                return PZEM_ERROR_VALUE;
-        }
-        return (data[0] << 8) + data[1] + (data[2] / 100.0);
-}
-
-float PZEM_power(void)
-{
-        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
-        if (PZEM_command(PZEM_POWER, 0, RESP_POWER, data)) {
-                return PZEM_ERROR_VALUE;
-        }
-        return (data[0] << 8) + data[1];
-}
-
-float PZEM_energy(void)
-{
-        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
-        if (PZEM_command(PZEM_ENERGY, 0, RESP_ENERGY, data)) {
-                return PZEM_ERROR_VALUE;
-        }
-        return ((uint32_t)data[0] << 16) + ((uint16_t)data[1] << 8) + data[2];
-}
+extern uint8_t PZEM_Version;	// Device version 3.0 in use ?
 
 void pzem_task(void *arg)
 {
 	float v;
 	int cnt =0;
 
-	uart_config_t uart_config = {
-		.baud_rate = 9600,
-		.data_bits = UART_DATA_8_BITS,
-		.parity = UART_PARITY_DISABLE,
-		.stop_bits = UART_STOP_BITS_1,
-		.flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-		.rx_flow_ctrl_thresh = 122,
-	};
-	uart_param_config(UART_NUM_1, &uart_config);
-	uart_set_pin(UART_NUM_1, PZEM_TXD, PZEM_RXD, -1, -1);
-	uart_driver_install(UART_NUM_1, UART_FIFO_LEN+2, 0, 0, NULL, 0);
+	PZEM_init();
 
-	PZEM_setAddress();
 	while(1) {
+
+		if (PZEM_Version)  PZEMv30_updateValues();
+
 		v = PZEM_voltage();
 		if (-1 == v) CurVolts = 0;
 		else CurVolts = v;
