@@ -74,34 +74,7 @@ extern int16_t WaterFlow;	// Значения датчика потока воды.
 
 
 
-// PZEM command and responce
-struct PZEMCommand {
-	uint8_t command;
-	uint8_t addr[4];
-	uint8_t data;
-	uint8_t crc;
-};
 
-#define PZEM_VOLTAGE (uint8_t)0xB0
-#define RESP_VOLTAGE (uint8_t)0xA0
-#define PZEM_CURRENT (uint8_t)0xB1
-#define RESP_CURRENT (uint8_t)0xA1
-#define PZEM_POWER   (uint8_t)0xB2
-#define RESP_POWER   (uint8_t)0xA2
-#define PZEM_ENERGY  (uint8_t)0xB3
-#define RESP_ENERGY  (uint8_t)0xA3
-#define PZEM_SET_ADDRESS (uint8_t)0xB4
-#define RESP_SET_ADDRESS (uint8_t)0xA4
-#define PZEM_POWER_ALARM (uint8_t)0xB5
-#define RESP_POWER_ALARM (uint8_t)0xA5
-
-#define PZEM_RESPONSE_SIZE sizeof(struct PZEMCommand)
-#define PZEM_RESPONSE_DATA_SIZE PZEM_RESPONSE_SIZE - 2
-
-#define PZEM_BAUD_RATE 9600
-#define PZEM_DEFAULT_READ_TIMEOUT 1000
-
-#define PZEM_ERROR_VALUE -1.0
 
 
 #define TICK_RATE_HZ 100
@@ -136,12 +109,12 @@ extern klp_list Klp[MAX_KLP];		// Список клапанов.
 void myBeep(bool lng);		// Включаем бипер
 
 
-float PZEM_setAddress(void);
+void PZEM_init(void);
+bool PZEMv30_updateValues(void);
 float PZEM_voltage(void);
 float PZEM_current(void);
 float PZEM_power(void);
 float PZEM_energy(void);
-
 
 const char *getMainModeStr(void);
 const char *getAlarmModeStr(void);
