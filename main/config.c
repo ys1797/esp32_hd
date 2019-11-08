@@ -82,6 +82,7 @@ vaiable_list DEFL_PARAMS[] =
 
 	{"processGpio",		VARIABLE_INT,	0,	40,	"0",	NULL},
 	{"klp1_isPWM", 		VARIABLE_CHECKBOX, 0,	1,	"0",	NULL},
+	{"pzemVersion", 	VARIABLE_INT,	0,	2,	"0",	NULL},
 
 	{NULL}
 };
