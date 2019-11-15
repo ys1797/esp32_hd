@@ -538,6 +538,9 @@ showStick = function(level,text) {
 <tr><td class="ta_r">Вместа клапана воды используется регулятор: </td>
 <td class="ta_l"><input id="klp1_isPWM" type="checkbox" value=1></td></tr>
 
+<tr><td class="ta_r">PZEM протокол v.30 (modbus RTU) <span class="red">*</span>: </td>
+<td class="ta_l"><input id="pzemVersion" type="checkbox" value=1>Да</td></tr>
+
 <tr><td colspan="2" class="ta_c">
 <input type="button" value="Восстановить по умолчанию" onclick="default_parameters();"/>
 <input type="button" value="Сохранить изменения" onclick="set_parameters();"/>
@@ -901,10 +904,11 @@ default_parameters = function() {
 }
 
 set_parameters = function() {
-  var beepChangeState=0, klpSilentNode=0, klp1_isPWM=0;
+  var beepChangeState=0, klpSilentNode=0, klp1_isPWM=0, pzemVersion=0;
   if($('#beepChangeState').is(':checked')) beepChangeState=1;
   if($('#klpSilentNode').is(':checked')) klpSilentNode=1;
   if($('#klp1_isPWM').is(':checked')) klp1_isPWM=1;
+  if($('#pzemVersion').is(':checked')) pzemVersion=1;
 
   $.post('/saveparam', {
         'maxPower': $("#maxPower").val(),
@@ -935,6 +939,7 @@ set_parameters = function() {
 	'alarmMPX5010': $("#alarmMPX5010").val(),
 	'beepChangeState': beepChangeState,
 	'klp1_isPWM': klp1_isPWM,
+	'pzemVersion': pzemVersion,
 	'processGpio': $("#processGpio").val(),
 
    }, function(d) {
@@ -977,6 +982,8 @@ disp_setting = function() {
         else $('#beepChangeState').removeAttr('checked');
 	if (eval(d.klp1_isPWM)) $('#klp1_isPWM').prop('checked', 1);
 	else $('#klp1_isPWM').removeAttr('checked');
+	if (eval(d.pzemVersion)) $('#pzemVersion').prop('checked', 1);
+	else $('#pzemVersion').removeAttr('checked');
 	$("#processGpio").val(d.processGpio);
 
 
