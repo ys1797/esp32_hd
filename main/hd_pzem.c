@@ -316,46 +316,73 @@ float PZEM_setAddress(void)
 
 float PZEM_voltage(void)
 {
-        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
-        if (PZEM_command(PZEM_VOLTAGE, 0, RESP_VOLTAGE, data)) {
-                return PZEM_ERROR_VALUE;
-        }
-        return (data[0] << 8) + data[1] + (data[2] / 10.0);
+	if (!PZEM_Version) {
+		// Old protocol
+	        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
+	        if (PZEM_command(PZEM_VOLTAGE, 0, RESP_VOLTAGE, data)) {
+	                return PZEM_ERROR_VALUE;
+	        }
+	        return (data[0] << 8) + data[1] + (data[2] / 10.0);
+	} else {
+		return PZEMv3_Values.voltage;
+	}
 }
 
 float PZEM_current(void)
 {
-        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
-        if (PZEM_command(PZEM_CURRENT, 0, RESP_CURRENT, data)) {
-                return PZEM_ERROR_VALUE;
-        }
-        return (data[0] << 8) + data[1] + (data[2] / 100.0);
+	if (!PZEM_Version) {
+		// Old protocol
+	        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
+	        if (PZEM_command(PZEM_CURRENT, 0, RESP_CURRENT, data)) {
+	                return PZEM_ERROR_VALUE;
+	        }
+	        return (data[0] << 8) + data[1] + (data[2] / 100.0);
+	} else {
+		return PZEMv3_Values.current;
+	}
 }
 
 float PZEM_power(void)
 {
-        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
-        if (PZEM_command(PZEM_POWER, 0, RESP_POWER, data)) {
-                return PZEM_ERROR_VALUE;
-        }
-        return (data[0] << 8) + data[1];
+	if (!PZEM_Version) {
+		// Old protocol
+	        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
+	        if (PZEM_command(PZEM_POWER, 0, RESP_POWER, data)) {
+	                return PZEM_ERROR_VALUE;
+	        }
+	        return (data[0] << 8) + data[1];
+	} else {
+		return PZEMv3_Values.power;
+	}
 }
 
 float PZEM_energy(void)
 {
-        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
-        if (PZEM_command(PZEM_ENERGY, 0, RESP_ENERGY, data)) {
-                return PZEM_ERROR_VALUE;
-        }
-        return ((uint32_t)data[0] << 16) + ((uint16_t)data[1] << 8) + data[2];
+	if (!PZEM_Version) {
+		// Old protocol
+	        uint8_t data[PZEM_RESPONSE_DATA_SIZE];
+	        if (PZEM_command(PZEM_ENERGY, 0, RESP_ENERGY, data)) {
+	                return PZEM_ERROR_VALUE;
+	        }
+	        return ((uint32_t)data[0] << 16) + ((uint16_t)data[1] << 8) + data[2];
+	} else {
+		return PZEMv3_Values.energy;
+	}
 }
 
+float PZEM_frequeny(void)
+{
+	if (PZEM_Version) {
+		// New version
+		return PZEMv3_Values.frequeny;
+	}
+	return NAN;
+}
 
 
 
 void PZEM_init(void)
 {
-	uint8_t addr;
 	uart_config_t uart_config = {
 		.baud_rate = 9600,
 		.data_bits = UART_DATA_8_BITS,
@@ -375,7 +402,6 @@ void PZEM_init(void)
 	if (!PZEM_Version) {
 		// Old protocol
 		PZEM_setAddress();
-	} else {
 	}
 
 }
@@ -429,7 +455,12 @@ bool PZEMv30_updateValues(void)
 		return false;
 	}
 
-
+	PZEMv3_Values.voltage = NAN;
+	PZEMv3_Values.current = NAN;
+	PZEMv3_Values.power = NAN;
+	PZEMv3_Values.energy = NAN;
+	PZEMv3_Values.frequeny = NAN;
+	PZEMv3_Values.pf = NAN;
 
 	// Update the current values
 	PZEMv3_Values.voltage = ((uint32_t)response[3] << 8 | // Raw voltage in 0.1V
