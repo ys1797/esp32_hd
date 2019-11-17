@@ -194,7 +194,7 @@ void mainFrame(OLEDDisplayUiState* state, int16_t x, int16_t y)
 	f = getCubeTemp();
 	sprintf(b, "Cube: %0.1f", f);
 	oledDrawString(x , 30 + y, b);
-	sprintf(b, "P: %d", CurPower);
+	sprintf(b, "P: %d (h: %d)", CurPower, Hpoint);
 	oledDrawString(x , 46 + y, b);
 
 }
@@ -319,19 +319,21 @@ void pzem_task(void *arg)
 		} else {
 			// Проверка рассинхронизации мощности
 			int delta = abs(SetPower - CurPower);
-			int p5 = SetPower/20;
+//			int p5 = SetPower/20;
 			char inc = SetPower > CurPower;
-
+/*
 			if (delta > 200 ) {
 				if (inc) Hpoint -= 50; 
 				else Hpoint += 50;
-			} else if (delta > 50) {
+			} else
+*/
+			 if (delta > 50) {
 				if (inc) Hpoint -= 10; 
 				else Hpoint += 10;
-			} else if (delta > 10) {
-				if (inc) Hpoint -=3; 
-				else Hpoint +=3;
-			} else if (delta >= p5) {
+			} else  if (delta > 10) {
+				if (inc) Hpoint -=2; 
+				else Hpoint +=2;
+			} else if (delta >= 5) {
 				if (inc) Hpoint --; 
 				else Hpoint ++;
 			}
@@ -341,6 +343,7 @@ void pzem_task(void *arg)
 		}
 		if (Hpoint<TRIAC_GATE_MAX_CYCLES) Hpoint=TRIAC_GATE_MAX_CYCLES;
 
+		vTaskDelay(1000/portTICK_PERIOD_MS);
 	}
 }
 
