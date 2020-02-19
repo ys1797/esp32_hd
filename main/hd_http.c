@@ -33,6 +33,10 @@ License (MIT license):
 #include "esp_log.h"
 #include "cgiflash.h"
 #include "esp_log.h"
+#include "esp_ota_ops.h"
+#include "esp_flash_partitions.h"
+#include "esp_partition.h"
+#include "math.h"
 #include <cJSON.h>
 #include "cgiflash.h"
 #include "esp_spiffs.h"
@@ -74,6 +78,33 @@ struct http_digest {
         char nc[80];
         int qop;                /* Flag set to 1, if we send/recv qop="quth" */
 };
+
+#define FILE_CHUNK_LEN    (1024)
+#define MAX_FILENAME_LENGTH (1024)
+
+typedef struct {
+	enum {UPSTATE_START, UPSTATE_WRITE, UPSTATE_DONE, UPSTATE_ERR} state;
+	FILE *file;
+	char filename[MAX_FILENAME_LENGTH + 1];
+	int b_written;
+	const char *errtxt;
+} UploadState;
+
+//#define BUFFSIZE 1024
+#define HASH_LEN 32 /* SHA-256 digest length */
+
+typedef struct {
+	enum {FW_START, FW_WRITE, FW_DONE, FW_ERR} state;
+	//FILE *file;
+
+//	char filename[MAX_FILENAME_LENGTH + 1];
+	bool image_header_was_checked;
+	esp_ota_handle_t update_handle;
+	int binary_file_length;
+	const esp_partition_t *update_partition;
+	//const char *errtxt;
+} FWState;
+
 
 
 static const char *auth_html ="<!DOCTYPE HTML>\n"
@@ -300,12 +331,27 @@ static void send_http_auth(HttpdConnData *connData, const char *realm,
 static void send_json_headers(HttpdConnData *connData)
 {
 	httpdStartResponse(connData, 200);
-	httpdHeader(connData, "Content-Type", "application/json");
-	httpdHeader(connData, "Cache-Control", "no-cache, no-store, must-revalidate");
-	httpdHeader(connData, "Pragma", "no-cache");
+	httpdHeader(connData, "Content-Type", "application/json; charset=utf-8");
+	httpdHeader(connData, "Cache-Control", "no-cache, no-store, must-revalidate, max-age=0");
 	httpdHeader(connData, "Expires", "-1");
+	httpdHeader(connData, "Pragma", "no-cache");
 	httpdEndHeaders(connData);
 }
+
+static void cgiJsonResponseCommon(HttpdConnData *connData, cJSON *jsroot){
+	char *json_string = NULL;
+
+	//// Generate the header
+	// We want the header to start with HTTP code 200, which means the document is found.
+	send_json_headers(connData);
+	json_string = cJSON_Print(jsroot);
+	if (json_string) {
+		httpdSend(connData, json_string, -1);
+		cJSON_free(json_string);
+	}
+	cJSON_Delete(jsroot);
+}
+
 
 
 int checkAuth(HttpdConnData *connData)
@@ -1318,6 +1364,340 @@ int httpSms(HttpdConnData *connData)
 	return HTTPD_CGI_DONE;
 }
 
+int   cgiEspVfsUpload(HttpdConnData *connData) {
+	UploadState *state = (UploadState *)connData->cgiData;
+
+	if (connData->conn == NULL) {
+		//Connection aborted. Clean up.
+		if (state != NULL)  {
+			if (state->file != NULL) {
+				fclose(state->file);
+				ESP_LOGD(__func__, "fclose: %s, r", state->filename);
+			}
+			free(state);
+		}
+		ESP_LOGE(__func__, "Connection aborted!");
+		return HTTPD_CGI_DONE;
+	}
+
+	// First call to this cgi.
+	if (state == NULL) {
+		if ( !(connData->requestType == HTTPD_METHOD_POST))  {
+			return HTTPD_CGI_NOTFOUND;  //  return and allow another cgi function to handle it
+		}
+		//First call. Allocate and initialize state variable.
+		state = malloc(sizeof(UploadState));
+
+		if (state==NULL) {
+			ESP_LOGE(__func__, "Can't allocate upload struct");
+			//return HTTPD_CGI_NOTFOUND;  // Let cgiNotFound() deal with extra post data.
+			state->state=UPSTATE_ERR;
+			goto error_first;
+		}
+		memset(state, 0, sizeof(UploadState));  // all members of state are initialized to 0
+		state->state = UPSTATE_START;
+
+		if (connData->post->multipartBoundary != NULL)  {
+//			todo: handle when uploaded file is POSTed in a multipart/form-data.  For now, just upload the file by itself (i.e. xhr.send(file), not xhr.send(form)).
+			ESP_LOGE(__func__, "Sorry! file upload in multipart/form-data is not supported yet.");
+			//return HTTPD_CGI_NOTFOUND;  // Let cgiNotFound() deal with extra post data.
+			state->state=UPSTATE_ERR;
+			goto error_first;
+		}
+
+		// cgiArg specifies where this function is allowed to write to.  It must be specified and can't be empty.
+		const char *basePath = connData->cgiArg;
+		if ((basePath == NULL) || (*basePath == 0)) {
+			state->state=UPSTATE_ERR;
+			goto error_first;
+		}
+		int n = strlcpy(state->filename, basePath, MAX_FILENAME_LENGTH);
+		if (n >= MAX_FILENAME_LENGTH) goto error_first;
+
+		// Is cgiArg a single file or a directory (with trailing slash)?
+		if (basePath[n - 1] == '\\' || basePath[n - 1] == '/') {
+			// check last char in cgiArg string for a slash
+			// Last char of cgiArg is a slash, assume it is a directory.
+
+			// get queryParameter "filename" : string
+			char* filenamebuf = state->filename + n;
+
+			//ESP_LOGI(TAG,"getArg:%s\n",connData->getArgs);
+			int arglen = httpdFindArg(connData->getArgs, "filename", filenamebuf, MAX_FILENAME_LENGTH - n);
+			// 3. (highest priority) Filename to write to is cgiArg + "filename" as specified by url parameter
+			if (arglen > 0)  {
+				// filename is already appended by httpdFindArg() above.
+			} else if (0) {
+				// Beginning of POST data (after first headers):
+				/*
+                                -----------------------------190192493010810\r\n
+                                Content-Disposition: form-data; name="file"; filename="/README.md"\r\n
+                                Content-Type: application/octet-stream\r\n
+                                \r\n
+                                datadatadatadata...
+				*/
+			} else if (connData->url != NULL) {
+				// 1: Filename to write to is cgiArg + url.
+				strncat(state->filename, connData->url, MAX_FILENAME_LENGTH - n);
+			}
+		} else {
+			// Last char of cgiArg is not a slash, assume a single file.
+			// Filename to write to is forced to cgiArg.  The filename specified in the PUT url or in the POST filename is simply ignored.
+			//   (Anyway, a proper ROUTE entry should enforce the PUT url matches the cgiArg. i.e.
+			//   ROUTE_CGI_ARG("/writeable_file.txt", cgiEspVfsPut, FS_BASE_PATH "/html/writeable_file.txt"))
+			// filename is already = basePath from strlcpy() above.
+		}
+
+		ESP_LOGI(__func__, "Uploading: %s", state->filename);
+
+/*
+		// Create missing directories
+		if (createMissingDirectories(state->filename) != ESP_OK) {
+			state->errtxt="Error creating directory!";
+			state->state=UPSTATE_ERR;
+			goto error_first;
+		}
+*/
+		// Open file for writing
+		state->file = fopen(state->filename, "w");
+
+		if (state->file == NULL) {
+			ESP_LOGE(__func__, "Can't open file for writing!");
+			state->errtxt="Can't open file for writing!";
+			state->state=UPSTATE_ERR;
+			goto error_first;
+		}
+
+		state->state=UPSTATE_WRITE;
+		ESP_LOGD(__func__, "fopen: %s, w", state->filename);
+
+error_first:
+		connData->cgiData=state;
+	}
+
+	ESP_LOGD(__func__, "Chunk: %d bytes, ", connData->post->buffLen);
+
+	if (state->state==UPSTATE_WRITE) {
+		if (state->file != NULL){
+			int count = fwrite(connData->post->buff, 1, connData->post->buffLen, state->file);
+			state->b_written += count;
+			if (count != connData->post->buffLen) {
+				state->state=UPSTATE_ERR;
+				ESP_LOGE(__func__, "error writing to filesystem!");
+			}
+			if (state->b_written >= connData->post->len){
+				state->state=UPSTATE_DONE;
+			}
+		} // else, Just eat up any bytes we receive.
+	} else if (state->state==UPSTATE_DONE) {
+		ESP_LOGE(__func__, "bogus bytes received after data received");
+		//Ignore those bytes.
+	} else if (state->state==UPSTATE_ERR) {
+		//Just eat up any bytes we receive.
+	}
+	vTaskDelay(10/portTICK_PERIOD_MS);
+
+	if (connData->post->received == connData->post->len) {
+		//We're done.
+		cJSON *jsroot = cJSON_CreateObject();
+		if (state->file != NULL) {
+			fclose(state->file);
+			ESP_LOGD(__func__, "fclose: %s, r", state->filename);
+		}
+		ESP_LOGI(__func__, "Total: %d bytes written.", state->b_written);
+
+		cJSON_AddStringToObject(jsroot, "filename", state->filename);
+		cJSON_AddNumberToObject(jsroot, "received", connData->post->received);
+		cJSON_AddNumberToObject(jsroot, "written", state->b_written);
+		cJSON_AddBoolToObject(jsroot, "success", state->state==UPSTATE_DONE);
+		free(state);
+
+		cgiJsonResponseCommon(connData, jsroot); // Send the json response!
+		return HTTPD_CGI_DONE;
+	} else {
+		//Ok, till next time.
+		return HTTPD_CGI_MORE;
+	}
+}
+
+/*an ota data write buffer ready to write to the flash*/
+//static char ota_write_data[BUFFSIZE + 1] = { 0 };
+int   cgiFwUpload(HttpdConnData *connData)
+{
+	FWState *state=(FWState *)connData->cgiData;
+	esp_err_t err;
+	/* update handle : set by esp_ota_begin(), must be freed via esp_ota_end() */
+
+	const esp_partition_t *configured = esp_ota_get_boot_partition();
+	const esp_partition_t *running = esp_ota_get_running_partition();
+
+	if (connData->conn==NULL) {
+		//Connection aborted. Clean up.
+		if (state != NULL) {
+			//if(state->update_handle != 0){
+				esp_ota_end(state->update_handle);
+			//}
+			free(state);
+		}
+		ESP_LOGE(__func__, "Connection aborted!");
+		return HTTPD_CGI_DONE;
+	}
+
+	if (state == NULL) {
+		//First call to this cgi.
+		if ( !(connData->requestType==HTTPD_METHOD_POST)) {
+			return HTTPD_CGI_NOTFOUND;  //  return and allow another cgi function to handle it
+		}
+		//First call. Allocate and initialize state variable.
+		state = malloc(sizeof(FWState));
+		if (state==NULL) {
+			ESP_LOGE(__func__, "Can't allocate upload struct");
+			//return HTTPD_CGI_NOTFOUND;  // Let cgiNotFound() deal with extra post data.
+			state->state=UPSTATE_ERR;
+			goto error_first;
+		}
+		memset(state, 0, sizeof(FWState));  // all members of state are initialized to 0
+		state->state = FW_START;
+		state->image_header_was_checked = false;
+		state->update_handle = 0 ;
+		state->binary_file_length = 0;
+		state->update_partition = NULL;
+		ESP_LOGI(TAG, "Starting OTA");
+		if (configured != running) {
+			ESP_LOGW(TAG, "Configured OTA boot partition at offset 0x%08x, but running from offset 0x%08x",
+				configured->address, running->address);
+			ESP_LOGW(TAG, "(This can happen if either the OTA boot data or preferred boot image become corrupted somehow.)");
+		}
+		ESP_LOGI(TAG, "Running partition type %d subtype %d (offset 0x%08x)",
+				running->type, running->subtype, running->address);
+
+		state->update_partition = esp_ota_get_next_update_partition(NULL);
+		ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x",
+				state->update_partition->subtype, state->update_partition->address);
+		assert(state->update_partition != NULL);
+
+		if (connData->post->multipartBoundary != NULL) {
+			// todo: handle when uploaded file is POSTed in a multipart/form-data.  For now, just upload the file by itself (i.e. xhr.send(file), not xhr.send(form)).
+			ESP_LOGE(__func__, "Sorry! file upload in multipart/form-data is not supported yet.");
+			//return HTTPD_CGI_NOTFOUND;  // Let cgiNotFound() deal with extra post data.
+			state->state=FW_ERR;
+			goto error_first;
+		}
+		state->state=FW_WRITE;
+error_first:
+		connData->cgiData=state;
+	}
+
+	if (state->state==FW_WRITE) {
+if (1) {
+		if (state->image_header_was_checked == false) {
+			esp_app_desc_t new_app_info;
+			if (connData->post->buffLen > sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
+				// check current version with downloading
+				memcpy(&new_app_info, &connData->post->buff[sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t)], sizeof(esp_app_desc_t));
+				ESP_LOGD(TAG, "New firmware version: %s", new_app_info.version);
+
+				esp_app_desc_t running_app_info;
+				if (esp_ota_get_partition_description(running, &running_app_info) == ESP_OK) {
+					ESP_LOGD(TAG, "Running firmware version: %s", running_app_info.version);
+				}
+
+				const esp_partition_t* last_invalid_app = esp_ota_get_last_invalid_partition();
+				esp_app_desc_t invalid_app_info;
+				if (esp_ota_get_partition_description(last_invalid_app, &invalid_app_info) == ESP_OK) {
+					ESP_LOGD(TAG, "Last invalid firmware version: %s", invalid_app_info.version);
+				}
+
+				// check current version with last invalid partition
+				if (last_invalid_app != NULL) {
+				if (memcmp(invalid_app_info.version, new_app_info.version, sizeof(new_app_info.version)) == 0) {
+					ESP_LOGW(TAG, "New version is the same as invalid version.");
+					ESP_LOGW(TAG, "Previously, there was an attempt to launch the firmware with %s version, but it failed.", invalid_app_info.version);
+					ESP_LOGW(TAG, "The firmware has been rolled back to the previous version.");
+				}
+			}
+
+			if (memcmp(new_app_info.version, running_app_info.version, sizeof(new_app_info.version)) == 0) {
+				ESP_LOGW(TAG, "Current running version is the same as a new. We will not continue the update.");
+			}
+
+			state->image_header_was_checked = true;
+
+			err = esp_ota_begin(state->update_partition, OTA_SIZE_UNKNOWN, &state->update_handle);
+			if (err != ESP_OK) {
+				ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
+				return -1;
+			}
+			ESP_LOGD(TAG, "esp_ota_begin succeeded");
+		} else {
+			ESP_LOGE(TAG, "received package is not fit len");
+			return -1;
+		}
+	}
+	err = esp_ota_write( state->update_handle, (const void *)connData->post->buff, connData->post->buffLen);
+	if (err != ESP_OK) {
+		return -1;
+	}
+
+	state->binary_file_length += connData->post->buffLen;
+	if (state->binary_file_length >= connData->post->len) {
+		state->state=FW_DONE;
+	}
+} // else, Just eat up any bytes we receive.
+	} else if (state->state==FW_DONE) {
+		ESP_LOGE(__func__, "bogus bytes received after data received");
+		//Ignore those bytes.
+	} else if (state->state==FW_ERR) {
+		//Just eat up any bytes we receive.
+	}
+
+	vTaskDelay(10/portTICK_PERIOD_MS);
+
+	if (connData->post->received == connData->post->len) {
+		//We're done.
+		cJSON *jsroot = cJSON_CreateObject();
+
+		if (esp_ota_end(state->update_handle) != ESP_OK) {
+			ESP_LOGE(TAG, "esp_ota_end failed!");
+			return -1;
+		}
+		ESP_LOGI(__func__, "Total: %d bytes written.", state->binary_file_length);
+
+		cJSON_AddNumberToObject(jsroot, "received", connData->post->received);
+		cJSON_AddNumberToObject(jsroot, "written", state->binary_file_length);
+		cJSON_AddBoolToObject(jsroot, "success", state->state==FW_DONE);
+		free(state);
+
+		cgiJsonResponseCommon(connData, jsroot); // Send the json response!
+
+		err = esp_ota_set_boot_partition(state->update_partition);
+		if (err != ESP_OK) {
+			ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
+			return -1;
+		}
+		ESP_LOGI(TAG, "Prepare to restart system!");
+		esp_restart();
+		return HTTPD_CGI_DONE;
+	} else {
+		//Ok, till next time.
+		return HTTPD_CGI_MORE;
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1367,6 +1747,10 @@ HttpdBuiltInUrl builtInUrls[]={
 	{"/wifi0", httpTemplate, WIFI_PAGE},
 	{"/r", httpReset, NULL},
 	{"/sms", httpSms, NULL},
+
+	{"/fu",cgiEspVfsUpload, "/s/"},
+	{"/fw",cgiFwUpload, NULL},
+
 
 	{"/ws", cgiWebsocket, WebsocketReceive},
 	{"*", httpDefault, NULL},
