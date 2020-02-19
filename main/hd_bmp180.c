@@ -385,6 +385,8 @@ int initBMP085(void)
         Pa_Offset = 0;               // 1hPa = 100Pa = 1mbar
         oldEMA = 0;
 
+	if (!I2C_detect[bmp180_Address]) return 1;
+
 	readCalibrationData();
 	showCalibrationData();
 
