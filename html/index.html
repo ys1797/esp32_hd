@@ -202,6 +202,14 @@ function websock_init(address, protocol) {
 	if (eval(d.WaterFlow)<0) $(".WaterFlow").html("Нет данных");
 	else $(".WaterFlow").html(d.WaterFlow);
 	$(".heap").html('heap: '+d.heap);
+
+	if (typeof(d.bmpTemperature) != "undefined") {
+		$(".bmpTemperature").html(" T: "+d.bmpTemperature+ " C");
+	}
+	if (typeof(d.bmpTruePressure) != "undefined") {
+		$(".bmpTruePressure").html(" P: "+d.bmpTruePressure+" mm.");
+	}
+
 	for (var i in d.sensors) {
                 var s = d.sensors[i];
 		$(".sens_"+s.id).html(s.temp+' C');
@@ -306,7 +314,10 @@ showStick = function(level,text) {
 <div class="ta_l"><span class="ws_status"></span> <span class="AlarmMode bold"></span></div>
 <div class="ta_l"><span class="time"></span> up: <span class="uptime">0:0:0</span></div>
 <div class="ta_l MainModeStr bold"></div>
-<div class="ta_l CurPower bold"></div>
+<div class="ta_l bold"><span class="CurPower"></span>
+<span class="bmpTemperature"></span>
+<span class="bmpTruePressure"></span>
+</div>
 </td></tr>
 <tr><td style="text-align: left; vertical-align: bottom; padding-top: 10px;">
 <input class="menu" type="button" onClick="disp_main();" value="Главная"/>
@@ -653,12 +664,13 @@ showStick = function(level,text) {
 </div></div>
 
 <div class="footer">
-<span class="ta_l" style="padding-left: 15px;">hd_esp32 Copyright &copy; 2019,
+<span class="ta_l" style="padding-left: 15px;">hd_esp32 Copyright &copy; 2020,
 </span>
 <span class="Version"></span>
 <span class="usedBytes"></span>
 <span class="totalBytes"></span>
 <span class="heap"></span>
+<span class="rReason"></span>
 </div>
 
 </div>
@@ -1185,6 +1197,13 @@ _sysinfo = function() {
 	$(".usedBytes").html('Использовано: '+d.usedBytes);
 	$(".totalBytes").html('Всего: '+d.totalBytes);
 	$(".heap").html('heap: '+d.heap);
+	$(".rReason").html(d.rReason);
+	if (typeof(d.bmpTemperature) != "undefined") {
+		$(".bmpTemperature").html(" T: "+d.bmpTemperature+ " C");
+	}
+	if (typeof(d.bmpTruePressure) != "undefined") {
+		$(".bmpTruePressure").html(" P: "+d.bmpTruePressure+" mm.");
+	}
   }, 'json');
 }
 
