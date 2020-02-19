@@ -245,6 +245,7 @@ void md5_hash(char *output, const char *input)
  */
 static int authorize(const struct http_digest *digest, char method)
 {
+	int ret;
         char ha2[34];
         char resp[256];
         char resp_hash[34]="";
@@ -264,11 +265,13 @@ static int authorize(const struct http_digest *digest, char method)
         md5_hash(ha2, resp);
 	if (digest->qop) {
                 /* RFC 2617 */
-                snprintf(resp, sizeof(resp), "%s:%s:%s:%s:auth:%s", ha1, digest->nonce,
+                ret = snprintf(resp, sizeof(resp), "%s:%s:%s:%s:auth:%s", ha1, digest->nonce,
 			digest->nc, digest->cnonce, ha2);
+		if (ret < 0) return -1;
         }  else {
                 /* RFC 2069 */
-                snprintf(resp, sizeof(resp), "%s:%s:%s", ha1, digest->nonce, ha2);
+		ret = snprintf(resp, sizeof(resp), "%s:%s:%s", ha1, digest->nonce, ha2);
+		if (ret < 0) return -1;
         }
         md5_hash(resp_hash, resp);
         return (!memcmp(resp_hash, digest->response, 32));
@@ -528,7 +531,7 @@ int httpStartProcess(HttpdConnData *connData)
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;
 	if (checkAuth(connData)) return HTTPD_CGI_DONE;
 	send_json_headers(connData);
-	MainStatus = PROC_START;
+	setNewMainStatus(PROC_START);
 	json_ok(connData);
 	return HTTPD_CGI_DONE;
 
@@ -539,7 +542,7 @@ int httpEndProcess(HttpdConnData *connData)
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;
 	if (checkAuth(connData)) return HTTPD_CGI_DONE;
 	send_json_headers(connData);
-	MainStatus = PROC_END;
+	setNewMainStatus(PROC_END);
 	json_ok(connData);
 	return HTTPD_CGI_DONE;
 }
@@ -827,6 +830,7 @@ int httpSysinfo(HttpdConnData *connData)
 	cJSON_AddItemToObject(ja, "totalBytes", cJSON_CreateNumber(SPIFFS_total));
 	cJSON_AddItemToObject(ja, "usedBytes", cJSON_CreateNumber(SPIFFS_used));
 	cJSON_AddItemToObject(ja, "heap", cJSON_CreateNumber(esp_get_free_heap_size()));
+	cJSON_AddItemToObject(ja, "rReason", cJSON_CreateString(getResetReasonStr()));
 	char *r=cJSON_Print(ja);
 	if (r) {
 		httpdSend(connData, r, strlen(r));
@@ -853,8 +857,10 @@ int httpDirList(HttpdConnData *connData)
 	if (dir) {
 
 		while ((dent=readdir(dir))) {
+			int ret;
 			char f[80];
-			snprintf(f, sizeof(f), "/s/%s", dent->d_name);
+			ret = snprintf(f, sizeof(f), "/s/%s", dent->d_name);
+			if (ret < 0) return -1;
 			j = cJSON_CreateObject();
 			cJSON_AddItemToArray(ja, j);
 			cJSON_AddItemToObject(j, "name", cJSON_CreateString(dent->d_name));
@@ -1314,9 +1320,10 @@ int httpSms(HttpdConnData *connData)
 
 
 
-void WebsocketConnected(Websock *ws)
-{
 
+void WebsocketReceive(Websock *ws, char *data, int len, int flags)
+{
+	ESP_LOGW(TAG, "Websocket data: %s len: %d", data, len);
 }
 
 	// Start http server
@@ -1361,7 +1368,7 @@ HttpdBuiltInUrl builtInUrls[]={
 	{"/r", httpReset, NULL},
 	{"/sms", httpSms, NULL},
 
-	{"/ws", cgiWebsocket, WebsocketConnected},
+	{"/ws", cgiWebsocket, WebsocketReceive},
 	{"*", httpDefault, NULL},
 	{NULL, NULL, NULL}
 };

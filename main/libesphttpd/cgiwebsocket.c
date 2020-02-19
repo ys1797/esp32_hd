@@ -330,9 +330,12 @@ int ICACHE_FLASH_ATTR cgiWebsocket(HttpdConnData *connData) {
 				httpdEndHeaders(connData);
 				//Set data receive handler
 				connData->recvHdl=cgiWebSocketRecv;
+
+				ws->recvCb = connData->cgiArg;
+
 				//Inform CGI function we have a connection
-				WsConnectedCb connCb=connData->cgiArg;
-				connCb(ws);
+//				WsConnectedCb connCb=connData->cgiArg;
+//				connCb(ws);
 				//Insert ws into linked list
 				if (llStart==NULL) {
 					llStart=ws;

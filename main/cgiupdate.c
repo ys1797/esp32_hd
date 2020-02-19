@@ -30,6 +30,10 @@ input {background-color: #dfdfdf; padding: 5px;}</style>
 <div id=f_l class=fs>Последняя версия. Нет необходимости в обновлении.</div>
 <div id=f_a class=fs>Последняя версия: <span id=newversion></span></div>
 <div>Url для обновления: <input type="text" name="url" id="url" value="http://hd.rus.net" /></div>
+<div><form name="upload">
+<input type="file" name="myfile">
+<input type="submit" value="Загрузить">
+</form></div> 
 <input type=button onclick='start_update();' value='Начать обновление' />
 <input type=button onclick='window.location.href="/index.html";' value='Вернуться на главную' />
 </div>
@@ -86,6 +90,39 @@ start_update = function () {
     start_dl(files[cnt]);
   }, 'json');
 }
+
+function upload(blobOrFile,act) {
+  var xhr = new XMLHttpRequest();
+    xhr.onload = xhr.onerror = function() {
+
+    if (this.status == 200) {
+               var j=JSON.parse(this.response);
+               var log=document.getElementById('f_p');
+      log.innerHTML=log.innerHTML+'success '+ j.received+'/'+j.written;
+    } else {
+      log.innerHTML=log.innerHTML+'<br>error ' + this.status;
+    }
+  };
+  xhr.open('POST', '/'+act+'?filename='+blobOrFile.name, true);
+  xhr.send(blobOrFile);
+  return false;
+}
+
+document.forms.upload.onsubmit = function() {
+ var input = this.elements.myfile;
+ var file = input.files[0];
+ var log=document.getElementById('f_p');
+ log.style.display='block';
+ log.innerHTML=log.innerHTML+'<br>upload file: '+file.name;
+ var act ='fu';
+ if (file.name=='esp32_hd.bin')act ='fw';
+ if (file) {
+   upload(file,act);
+ }
+ return false;
+}
+
+
 </script></body></html>
 )END";
 

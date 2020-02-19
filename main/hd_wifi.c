@@ -248,7 +248,7 @@ int wifi_cmd_ap_set(void)
 /*
  * Настройка wifi
  */
-esp_err_t wifi_setup(void)
+esp_err_t wifiSetup(void)
 {
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 

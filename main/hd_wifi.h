@@ -38,6 +38,6 @@ int wifi_cmd_ap_set(void);
 /* Start scan WiFi networks available */
 int8_t scanWifiNetworks(bool async, bool show_hidden, bool passive, uint32_t max_ms_per_chan);
 const char *wifi_auth_string(wifi_auth_mode_t auth);
-esp_err_t wifi_setup(void); // Настройка wifi
+esp_err_t wifiSetup(void); // Настройка wifi
 
 

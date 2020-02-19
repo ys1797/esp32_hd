@@ -99,6 +99,8 @@ long oldEMA;
 
 static uint8_t	bmp180_Address = 0x77;
 static int 	BMP085_mode = 3;
+double bmpTemperature = -1;
+double bmpTruePressure = -1;
 
 
 
@@ -113,6 +115,7 @@ static int set_i2c_register(uint8_t reg , uint8_t value)
 		printf("set_i2c_register write fail\n");
 		return 1;
 	}
+	vTaskDelay(10/portTICK_PERIOD_MS);
 	return 0;
 }
 
@@ -156,6 +159,7 @@ static int get_i2c_word(uint8_t reg, uint16_t *val)
         }
 
 	*val = (h<<8)+l;
+
 	return 0;
 }
 
@@ -246,7 +250,7 @@ static long readRawTemp(void)
                 return -1;
         }
 #if BMP_DEBUG
-        ESP_LOGD(TAG, "DBG: Raw Temp: 0x%04X (%d)", raw & 0xFFFF, raw);
+        ESP_LOGD(TAG, "DBG: Raw Temp: 0x%04lX (%ld)", raw & 0xFFFF, raw);
 #endif
         return raw;
 }
@@ -283,12 +287,12 @@ static long readRawPressure(void)
         raw = ((((long)msb<<16) | ((long)lsb<<8) | ((long)xlsb)) >> (8-BMP085_mode));
 
 #if BMP_DEBUG
-        ESP_LOGD(TAG, "DBG: Raw Pressure: 0x%04X (%d)",raw & 0xFFFF, raw);
+        ESP_LOGD(TAG, "DBG: Raw Pressure: 0x%04lX (%ld)",raw & 0xFFFF, raw);
 #endif
         return raw;
 }
 
-float getTemperature(void) {
+double getTemperature(void) {
         long ut, x1, x2, b5;
 
         /* Read raw temp before aligning it with the calibration values */
@@ -300,9 +304,9 @@ float getTemperature(void) {
         return ((b5 + 8) >> 4) /10.0;
 }
 
-long readPressure(void)
+double readPressure(void)
 {
-        long ut, up, x1, x2, x3, b3, b5, b6, p;
+	long ut, up, x1, x2, x3, b3, b5, b6, p;
         unsigned long b4, b7;
         int32_t tmp;
 
@@ -359,6 +363,18 @@ long readPressure(void)
         return  p + ((x1 + x2 + 3791) >> 4);
 }
 
+void bmp_task(void *arg)
+{
+	while(1) {
+		bmpTemperature = getTemperature();
+		bmpTruePressure = readPressure();
+
+		vTaskDelay(1000/portTICK_PERIOD_MS);
+	}
+
+}
+
+
 int initBMP085(void)
 {
 	pressure_waittime[0] = 5000; // These are maximum convertion times. (us)
@@ -372,6 +388,8 @@ int initBMP085(void)
 	readCalibrationData();
 	showCalibrationData();
 
+
+	xTaskCreate(&bmp_task, "bmp_task", 4096, NULL, 1, NULL);
 
 	ESP_LOGI(TAG, "BMP085 service started");
         return 0;

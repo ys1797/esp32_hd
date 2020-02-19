@@ -119,6 +119,8 @@ float PZEM_energy(void);
 const char *getMainModeStr(void);
 const char *getAlarmModeStr(void);
 const char *getMainStatusStr(void);
+const char *getResetReasonStr(void); // Получение строки о причине перезагрузки
+
 cJSON* getInformation(void);
 
 void sendSMS(char *text);	// Отправка SMS
@@ -126,6 +128,7 @@ void Rectification(void);	// Обработка состояний в режиме ректификации
 void setPower(int16_t pw);	// Установка рабочей мощности
 void setMainMode(int new_mode);	// Установка нового режима работы
 void setStatus(int next);	// Ручная установка состояния конечного автомата
+void setNewMainStatus(int16_t newStatus);
 void closeAllKlp(void);		// Закрытие всех клапанов.
 void openKlp(int i);		// Открытие клапана воды
 void closeKlp(int i);		// Закрытие определенного клапана

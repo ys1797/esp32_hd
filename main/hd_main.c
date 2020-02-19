@@ -27,9 +27,9 @@ License (MIT license):
 #include "freertos/xtensa_api.h"
 #include "freertos/event_groups.h"
 #include "freertos/timers.h"
+#include "esp32/rom/rtc.h"
 #include "esp_system.h"
 #include "esp_event.h"
-#include "esp_event_loop.h"
 #include "esp_spiffs.h"
 #include "esp_vfs_fat.h"
 #include "esp_log.h"
@@ -55,6 +55,7 @@ License (MIT license):
 #include "lwip/apps/sntp.h"
 #include "sh1106.h"
 #include "ds.h"
+#include "hd_bmp180.h"
 #include "esp_platform.h"
 #include "config.h"
 #include "hd_wifi.h"
@@ -153,6 +154,8 @@ int16_t rect_timer1=0;		// Таймер для отсчета секунд 1
 int16_t timer_sec2=0;		// Таймер для отсчета секунд 2
 int16_t timer_sec3=0;		// Таймер для отсчета секунд 3
 int32_t SecondsEnd;		// Время окончания процесса 
+RESET_REASON resetReason;	// Причина перезагрузки
+nvs_handle nvsHandle;
 
 static volatile int beeperTime=0;
 static volatile bool beepActive = false;
@@ -432,6 +435,31 @@ const char *getAlarmModeStr(void)
 }
 
 
+// Получение строки о причине перезагрузки
+const char *getResetReasonStr(void)
+{
+
+	switch (resetReason) {
+        case POWERON_RESET: return "Vbat power on reset";
+        case SW_RESET: return "Software reset digital core";
+        case OWDT_RESET: return "Legacy watch dog reset digital core";
+        case DEEPSLEEP_RESET: return "Deep Sleep reset digital core";
+        case SDIO_RESET: return "Reset by SLC module, reset digital core";
+        case TG0WDT_SYS_RESET: return "Timer Group0 Watch dog reset digital core";
+        case TG1WDT_SYS_RESET: return "Timer Group1 Watch dog reset digital core";
+        case RTCWDT_SYS_RESET: return "RTC Watch dog Reset digital core";
+        case INTRUSION_RESET: return "Instrusion tested to reset CPU";
+        case TGWDT_CPU_RESET: return "Time Group reset CPU";
+        case SW_CPU_RESET: return "Software reset CPU";
+        case RTCWDT_CPU_RESET: return "RTC Watch dog Reset CPU";
+        case EXT_CPU_RESET: return "For APP CPU, reseted by PRO CPU";
+        case RTCWDT_BROWN_OUT_RESET: return "Reset when the vdd voltage is not stable";
+        case RTCWDT_RTC_RESET: return "RTC Watch dog reset digital core and rtc module";
+	default: return "Uncnown reason";
+	}
+}
+
+
 xQueueHandle timer_queue;
 
 static void timer_example_evt_task(void *arg)
@@ -623,17 +651,23 @@ void setProcessGpio(int on)
 }
 
 /* Загрузка и установка параметров работы */
-int param_setup(void)
+int paramSetup(void)
 {
-	esp_err_t err;
-	nvs_handle nvs;
+	if (!nvsHandle) return -1;
 
-	ESP_ERROR_CHECK(err = nvs_open("storage", NVS_READWRITE, &nvs));
-	if (err != ESP_OK) return err;
-	nvs_get_i16(nvs, "SetPower", &SetPower);
-	nvs_get_i16(nvs, "MainMode", (int16_t*)&MainMode);
-	nvs_get_i16(nvs, "MainStatus", &MainStatus);
-	nvs_close(nvs);
+	nvs_get_i16(nvsHandle, "SetPower", &SetPower);
+	nvs_get_i16(nvsHandle, "MainMode", (int16_t*)&MainMode);
+	nvs_get_i16(nvsHandle, "MainStatus", &MainStatus);
+
+	if (MODE_RECTIFICATION == MainMode && resetReason > POWERON_RESET) {
+		// Восстановление при аварийной перезагрузке
+		uint64_t v;
+		ESP_ERROR_CHECK(nvs_get_u64(nvsHandle, "tempStabSR", &v));
+		tempStabSR = v;
+		nvs_get_u64(nvsHandle, "tempTube20Prev", &v);
+		tempTube20Prev = v;
+		nvs_get_i16(nvsHandle, "ProcChimSR", &ProcChimSR);
+	}
 
 	// Загрузка параметров 
 	if (param_load(DEFL_PARAMS, RECT_CONFIGURATION) < 0) {
@@ -674,6 +708,13 @@ cJSON* getInformation(void)
 	cJSON_AddItemToObject(ja, "TempWaterOut", cJSON_CreateNumber(TempWaterOut));
 	cJSON_AddItemToObject(ja, "WaterFlow", cJSON_CreateNumber(WaterFlow));
 	cJSON_AddItemToObject(ja, "heap", cJSON_CreateNumber(esp_get_free_heap_size()));
+	if (bmpTemperature > 0 && bmpTruePressure > 0) {
+		cJSON_AddItemToObject(ja, "bmpTemperature", cJSON_CreateNumber(bmpTemperature));
+		snprintf(data, sizeof(data)-1, "%0.2f", bmpTruePressure/133.332);
+		cJSON_AddItemToObject(ja, "bmpTruePressure", cJSON_CreateString(data));
+
+	}
+
 
 	j = cJSON_CreateArray();
 	cJSON_AddItemToObject(ja, "sensors", j);
@@ -769,30 +810,64 @@ void sendSMS(char *text)
 // Установка рабочей мощности
 void setPower(int16_t pw)
 {
-	nvs_handle nvs;
 	if (pw > getIntParam(DEFL_PARAMS, "maxPower")) SetPower = getIntParam(DEFL_PARAMS, "maxPower");
 	else SetPower = pw;
 
 	if (pw>0) setProcessGpio(1);
 	else setProcessGpio(0);
 
-	if (nvs_open("storage", NVS_READWRITE, &nvs) == ESP_OK) {
-		nvs_set_i16(nvs, "SetPower", SetPower);
-		nvs_close(nvs);
+	if (nvsHandle) {
+		nvs_set_i16(nvsHandle, "SetPower", SetPower);
 	}
 }                                                   
+
+static void setNewProcChimSR(int16_t newValue)
+{
+	ProcChimSR = newValue;
+	if (nvsHandle) {
+		nvs_set_i16(nvsHandle, "ProcChimSR", ProcChimSR);
+	}
+
+}
+
+static void setTempStabSR(double newValue)
+{
+	uint64_t v;
+	tempStabSR = newValue;
+	if (nvsHandle) {
+		v = (uint64_t) tempStabSR;
+		ESP_ERROR_CHECK(nvs_set_u64(nvsHandle, "tempStabSR", v));
+	}
+}
+
+static void setTempTube20Prev(double newValue)
+{
+	uint64_t v;
+	tempTube20Prev = newValue;
+	if (nvsHandle) {
+		v = (uint64_t) tempTube20Prev;
+		ESP_ERROR_CHECK(nvs_set_u64(nvsHandle, "tempTube20Prev", v));
+	}
+
+}
+
+void setNewMainStatus(int16_t newStatus)
+{
+	MainStatus = newStatus;
+	if (nvsHandle) {
+		nvs_set_i16(nvsHandle, "MainStatus", MainStatus);
+	}
+}
 
 
 // Установка нового режима работы
 void setMainMode(int nm)
 {
 	main_mode new_mode = (main_mode) nm;
-	nvs_handle nvs;	
 	if (new_mode == MainMode) return; // Не изменился
 	MainMode = new_mode;
-	if (nvs_open("storage", NVS_READWRITE, &nvs) == ESP_OK) {
-		nvs_set_i16(nvs, "MainMode", nm);
-		nvs_close(nvs);
+	if (nvsHandle) {
+		nvs_set_i16(nvsHandle, "MainMode", nm);
 	}
 
 	switch (MainMode) {
@@ -800,28 +875,28 @@ void setMainMode(int nm)
 		// Режим мониторинга
 		ESP_LOGI(TAG, "Main mode: Idle.");
 		setPower(0);
-		MainStatus = START_WAIT;
+		setNewMainStatus(START_WAIT);
 		break;
 	case MODE_POWEERREG:
 		// Режим регулятора мощности
 		ESP_LOGI(TAG, "Main mode: Power reg.");
-		MainStatus = PROC_START;
+		setNewMainStatus(PROC_START);
 		setPower(getIntParam(DEFL_PARAMS, "ustPowerReg"));
 		break;
 	case MODE_DISTIL:
 		// Режим дистилляции
 		ESP_LOGI(TAG, "Main mode: Distillation.");
-		MainStatus = START_WAIT;
+		setNewMainStatus(START_WAIT);
 		break;
 	case MODE_RECTIFICATION:
 		// Режим ректификации
 		ESP_LOGI(TAG, "Main mode: Rectification.");
-		MainStatus = START_WAIT;
+		setNewMainStatus(START_WAIT);
 		break;
 	case MODE_TESTKLP:
 		// Режим тестирования клапанов
 		ESP_LOGI(TAG, "Main mode: Test klp.");
-		MainStatus = START_WAIT;
+		setNewMainStatus(START_WAIT);
 		break;
 	}
 	myBeep(false);
@@ -840,39 +915,39 @@ void setStatus(int next)
 		// Режим дистилляции
 		if (next) {
 			if (MainStatus == START_WAIT) {
-				MainStatus = PROC_START;
+				setNewMainStatus(PROC_START);
 			} else if (MainStatus == PROC_START) {
 				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
-				MainStatus = PROC_RAZGON;
+				setNewMainStatus(PROC_RAZGON);
 			} else if (MainStatus == PROC_RAZGON) {
 				openKlp(klp_water);		// Открытие клапана воды
 				setPower(getIntParam(DEFL_PARAMS, "powerDistil"));	// Мощность дистилляции
-				MainStatus = PROC_DISTILL;
+				setNewMainStatus(PROC_DISTILL);
 			} else if (MainStatus == PROC_DISTILL) {
 				setPower(0);		// Снятие мощности с тэна
 				secTempPrev = uptime_counter;
-				MainStatus = PROC_WAITEND;
+				setNewMainStatus(PROC_WAITEND);
 			} else if (MainStatus == PROC_WAITEND) {
 				closeAllKlp();		// Закрытие всех клапанов.
-				MainStatus = PROC_END;
+				setNewMainStatus(PROC_END);
 			}
 		} else {
 			if (MainStatus == PROC_RAZGON) {
 				setPower(0);		// Снятие мощности с тэна
 				closeAllKlp();		// Закрытие всех клапанов.
-				MainStatus = START_WAIT;
+				setNewMainStatus(START_WAIT);
 			} else if (MainStatus == PROC_DISTILL) {
 				closeAllKlp();		// Закрытие всех клапанов.
 				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
-				MainStatus = PROC_RAZGON;
+				setNewMainStatus(PROC_RAZGON);
 			} else if (MainStatus == PROC_WAITEND) {
 				openKlp(klp_water);		// Открытие клапана воды
 				setPower(getIntParam(DEFL_PARAMS, "powerDistil"));	// Мощность дистилляции
-				MainStatus = PROC_DISTILL;
+				setNewMainStatus(PROC_DISTILL);
 			} else if (MainStatus == PROC_END) {
 				openKlp(klp_water);		// Открытие клапана воды
 				secTempPrev = uptime_counter;
-				MainStatus = PROC_WAITEND;
+				setNewMainStatus(PROC_WAITEND);
 			}
 		}
 		break;
@@ -881,14 +956,14 @@ void setStatus(int next)
 		// Режим ректификации
 		if (next) {
 			if (MainStatus == START_WAIT) {
-				MainStatus = PROC_START;
+				setNewMainStatus(PROC_START);
 			} else if (MainStatus == PROC_START) {
 				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
-				MainStatus = PROC_RAZGON;
+				setNewMainStatus(PROC_RAZGON);
 			} else if (MainStatus == PROC_RAZGON) {
 				openKlp(klp_water);	// Открытие клапана воды
 				setPower(getIntParam(DEFL_PARAMS, "powerRect"));    // Устанавливаем мощность ректификации
-				MainStatus = PROC_STAB; // Ручной переход в режим стабилизации
+				setNewMainStatus(PROC_STAB); // Ручной переход в режим стабилизации
 			} else if (MainStatus == PROC_STAB) {
 				setPower(getIntParam(DEFL_PARAMS, "powerRect"));   // Устанавливаем мощность ректификации
 				secTempPrev = uptime_counter;
@@ -898,59 +973,59 @@ void setStatus(int next)
 				topen = (float)(timeChimRectOtbGlv)/100*(float)(procChimOtbGlv);
 
 				startGlvKlp(topen, timeChimRectOtbGlv-topen);
-				tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
-				MainStatus = PROC_GLV; // Ручной переход в режим отбора голов
+				setTempStabSR(getTube20Temp() ); // температура, относительно которой будем стабилизировать отбор
+				setNewMainStatus(PROC_GLV); // Ручной переход в режим отбора голов
 			} else if (MainStatus == PROC_GLV) {
-				tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
+				setTempStabSR(getTube20Temp());	// температура, относительно которой будем стабилизировать отбор
 				closeKlp(klp_glwhq);  // Отключение клапана отбора голов/хвостов
-				ProcChimSR = getIntParam(DEFL_PARAMS, "beginProcChimOtbSR"); // Устанавливаем стартовый % отбора товарного продукта
-				MainStatus = PROC_T_WAIT;
+				setNewProcChimSR( getIntParam(DEFL_PARAMS, "beginProcChimOtbSR") ); // Устанавливаем стартовый % отбора товарного продукта
+				setNewMainStatus(PROC_T_WAIT);
 			} else if (MainStatus == PROC_T_WAIT) {
-				MainStatus = PROC_SR;
+				setNewMainStatus(PROC_SR);
 			} else if (MainStatus == PROC_SR) {
 				float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
 				closeKlp(klp_sr); 			// Отключение клапана продукта
 				topen = (float)(timeChimRectOtbGlv)*90/100;
 				startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
-				MainStatus = PROC_HV;
+				setNewMainStatus(PROC_HV);
 			} else if (MainStatus == PROC_HV) {
 				setPower(0);		// Снятие мощности с тэна
 				closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
-				MainStatus = PROC_WAITEND;
+				setNewMainStatus(PROC_WAITEND);
 			} else if (MainStatus == PROC_WAITEND) {
 				setPower(0);		// Снятие мощности с тэна
 				closeAllKlp();		// Закрытие всех клапанов.
-				MainStatus = PROC_END;
+				setNewMainStatus(PROC_END);
 			}
 		} else {
 			if (MainStatus == PROC_RAZGON) {
 				// Из разгона в режим ожидания запуска 
 				setPower(0);		// Снятие мощности с тэна
 				closeAllKlp();		// Закрытие всех клапанов.
-        			MainStatus = START_WAIT;
+        			setNewMainStatus(START_WAIT);
 			} else if (MainStatus == PROC_STAB) {
 				// Из стабилизации в режим разгона
 				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
-				MainStatus = PROC_RAZGON;
+				setNewMainStatus(PROC_RAZGON);
 			} else if (MainStatus == PROC_GLV) {
-				MainStatus = PROC_STAB;
+				setNewMainStatus(PROC_STAB);
 			} else if (MainStatus == PROC_T_WAIT) {
-				MainStatus = PROC_GLV;
+				setNewMainStatus(PROC_GLV);
 			} else if (MainStatus == PROC_SR) {
-				MainStatus = PROC_GLV;
+				setNewMainStatus(PROC_GLV);
 			} else if (MainStatus == PROC_HV) {
-				MainStatus = PROC_SR;
+				setNewMainStatus(PROC_SR);
 			} else if (MainStatus == PROC_WAITEND) {
 				// Переходим к отбору хвостов
 				setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
 				float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
 				topen = (float)(timeChimRectOtbGlv)*90/100;
 				startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
-				MainStatus = PROC_HV;
+				setNewMainStatus(PROC_HV);
 			} else if (MainStatus == PROC_END) {
 				openKlp(klp_water);	// Открытие клапана воды
 				secTempPrev = uptime_counter;
-				MainStatus = PROC_WAITEND;
+				setNewMainStatus(PROC_WAITEND);
 			}
 		}
 		break;
@@ -994,13 +1069,14 @@ void Rectification(void)
 		break;
 	case PROC_START:
 		// Начало процесса
-		MainStatus = PROC_RAZGON;
+		setNewMainStatus(PROC_RAZGON);
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
+		 /* fall through */
 
 	case PROC_RAZGON:
 		// Разгон до рабочей температуры
-		 tempEndRectRazgon = getFloatParam(DEFL_PARAMS, "tempEndRectRazgon");
+		tempEndRectRazgon = getFloatParam(DEFL_PARAMS, "tempEndRectRazgon");
 
 		if (tempEndRectRazgon > 0) t = getCubeTemp();
 		else t = getTube20Temp();
@@ -1011,13 +1087,16 @@ void Rectification(void)
 		openKlp(klp_water);	// Открытие клапана воды
 		setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
 		// Запоминаем температуру и время
-		tempStabSR = tempTube20Prev = getTube20Temp();
+		t = getTube20Temp();
+                setTempStabSR(t);
+		setTempTube20Prev(t);
 		secTempPrev = uptime_counter;
-		MainStatus = PROC_STAB;
+		setNewMainStatus(PROC_STAB);
 #ifdef DEBUG
 		ESP_LOGI(TAG, "Switch state to stabilization.");
 #endif
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
+		 /* fall through */
 
 	case PROC_STAB:
 		{
@@ -1060,7 +1139,8 @@ void Rectification(void)
 
 				// Рассогласование температуры запоминаем
 				// температуру и время
-				tempStabSR = tempTube20Prev = t;
+		                setTempStabSR(t);
+				setTempTube20Prev(t);
 				secTempPrev = uptime_counter;
 				break;
 			}
@@ -1077,7 +1157,7 @@ void Rectification(void)
 		}
 
 		// Переходим к следующему этапу - отбору голов. 
-		MainStatus = PROC_GLV;
+		setNewMainStatus(PROC_GLV);
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		secTempPrev = uptime_counter;
 		setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
@@ -1087,12 +1167,14 @@ void Rectification(void)
 		topen = (float)(timeChimRectOtbGlv)/100*(float)(procChimOtbGlv);
 		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
 
-		tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
+		setTempStabSR(getTube20Temp());	// температура, относительно которой будем стабилизировать отбор
 #ifdef DEBUG
-			ESP_LOGI(TAG, "Switch to `glv` stage");
+		ESP_LOGI(TAG, "Switch to `glv` stage");
 #endif
 
 		}
+		 /* fall through */
+
 	case PROC_GLV:
 		// Отбор головных фракций
 		t = getCubeTemp();
@@ -1102,23 +1184,23 @@ void Rectification(void)
 		}
 		// Окончание отбора голов
 		closeKlp(klp_glwhq); 			// Отключение клапана отбора голов/хвостов
-		MainStatus = PROC_T_WAIT;		// Переходим к стабилизации температуры
-		ProcChimSR = getIntParam(DEFL_PARAMS, "beginProcChimOtbSR");	// Устанавливаем стартовый % отбора товарного продукта
-		tempStabSR = getTube20Temp();	// температура, относительно которой будем стабилизировать отбор
+		setNewMainStatus(PROC_T_WAIT);		// Переходим к стабилизации температуры
+		setNewProcChimSR(getIntParam(DEFL_PARAMS, "beginProcChimOtbSR")); // Устанавливаем стартовый % отбора товарного продукта
+		setTempStabSR(getTube20Temp()); // температура, относительно которой будем стабилизировать отбор
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
-			ESP_LOGI(TAG, "Switch to `T wait` stage");
+		ESP_LOGI(TAG, "Switch to `T wait` stage");
 #endif
-
+		 /* fall through */
 
 	case PROC_T_WAIT:
 		// Ожидание стабилизации температуры
-		if (tempStabSR <= 0) tempStabSR =28.5;
+		if (tempStabSR <= 0) setTempStabSR(28.5);
 
 		if (0 == rect_timer1 && getIntParam(DEFL_PARAMS, "timeRestabKolonna") > 0) {
 			// Если колонна слишком долго находится в режиме стопа,
 			// то температуру стабилизации примем за новую
-			tempStabSR = getTube20Temp();
+			setTempStabSR(getTube20Temp());
 			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 			ESP_LOGI(TAG, "New temperature for stabilization: %0.2f", tempStabSR);
@@ -1132,7 +1214,7 @@ void Rectification(void)
 			float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
 			topen = (float)(timeChimRectOtbGlv)*90/100;
 			startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
-       			MainStatus = PROC_HV;
+       			setNewMainStatus(PROC_HV);
 			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 			break;
 		}
@@ -1144,19 +1226,19 @@ void Rectification(void)
 		// Переход к отбору товарного продукта 
 
 		// Реализуется отбор по-шпоре, что в функции прописано то и будет возвращено.
-		ProcChimSR = GetSrPWM();
+		setNewProcChimSR(GetSrPWM());
 		// Устанавливаем медленный ШИМ клапана продукта
 		float timeChimRectOtbSR = getFloatParam(DEFL_PARAMS, "timeChimRectOtbSR");
 		topen = (float)(timeChimRectOtbSR)*(float)(ProcChimSR)/100;
 		startSrKlp(topen, (float)(timeChimRectOtbSR)-topen);
 
 		secTempPrev = uptime_counter;	// Запомним время, когда стабилизировалась температура
-		MainStatus = PROC_SR;		// Переход к отбору продукта
+		setNewMainStatus(PROC_SR);	// Переход к отбору продукта
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 		ESP_LOGI(TAG, "Switch state to SR. Temperature: %0.2f", tempStabSR);
 #endif
-
+                 /* fall through */
 
 	case PROC_SR:
 		// Отбор СР
@@ -1178,17 +1260,17 @@ void Rectification(void)
 			int decrementCHIM = getIntParam(DEFL_PARAMS, "decrementCHIM");
 			if (decrementCHIM>=0) { 
 				// Тогда уменьшаем  ШИМ указанное число процентов в абсолютном выражении
-				ProcChimSR -= decrementCHIM; 
+				setNewProcChimSR(ProcChimSR-decrementCHIM);
 			} else {
 				uint16_t v = (ProcChimSR * (-decrementCHIM))/100;
 				// Процентное отношение может быть очень мало,
 				// поэтому если получилось нулевое значение, то вычтем единицу.
 				if (v<=0) v=1;
-				ProcChimSR -= v; // Тогда увеличиваем ШИМ на число процентов в относительном выражении
+				setNewProcChimSR(ProcChimSR - v); // Тогда увеличиваем ШИМ на число процентов в относительном выражении
 			}
-			if (ProcChimSR < minProcChimOtbSR) ProcChimSR = minProcChimOtbSR;
+			if (ProcChimSR < minProcChimOtbSR) setNewProcChimSR(minProcChimOtbSR);
 			rect_timer1 = getIntParam(DEFL_PARAMS, "timeRestabKolonna"); // Установка таймера стабилизации
-			MainStatus = PROC_T_WAIT; // Переходим в режим стабилизации
+			setNewMainStatus(PROC_T_WAIT); // Переходим в режим стабилизации
 			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 			ESP_LOGI(TAG, "Switch state to temperature re-stabilization.");
@@ -1203,12 +1285,12 @@ void Rectification(void)
 					int incrementCHIM = getIntParam(DEFL_PARAMS, "incrementCHIM");
 					if (incrementCHIM>=0) {
 						// Абсолютное значение
-						ProcChimSR += incrementCHIM;
+						setNewProcChimSR(ProcChimSR + incrementCHIM);
 					} else {
 						// Проценты
-						ProcChimSR += (ProcChimSR*(-incrementCHIM))/100;
+						setNewProcChimSR(ProcChimSR + (ProcChimSR*(-incrementCHIM))/100);
 					}
-					if (ProcChimSR>95) ProcChimSR=95;
+					if (ProcChimSR>95) setNewProcChimSR(95);
 
 					float timeChimRectOtbSR = getFloatParam(DEFL_PARAMS, "timeChimRectOtbSR");
 					topen = (float)(timeChimRectOtbSR)*(float)(ProcChimSR)/100;
@@ -1226,9 +1308,9 @@ void Rectification(void)
 		float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
 		topen = (float)(timeChimRectOtbGlv)*90/100;
 		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
-		MainStatus = PROC_HV;			// Переход к отбору хвостов
+		setNewMainStatus(PROC_HV);			// Переход к отбору хвостов
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
-
+		 /* fall through */
 
 	case PROC_HV:
 		// Отбор хвостовых фракций
@@ -1241,12 +1323,12 @@ void Rectification(void)
 		setPower(0);		// Снятие мощности с тэна
 		closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
 		secTempPrev = uptime_counter;
-		MainStatus = PROC_WAITEND;			
+		setNewMainStatus(PROC_WAITEND);
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
 		ESP_LOGI(TAG, "Switch state to wait End of Rectification.");
 #endif
-
+		 /* fall through */
 
 	case PROC_WAITEND:
 		// Отключение нагрева, подача воды для охлаждения
@@ -1256,12 +1338,11 @@ void Rectification(void)
 			SecondsEnd = uptime_counter;
 			sprintf(b, "Rectification complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
 			sendSMS(b);
-        		MainStatus = PROC_END;
+        		setNewMainStatus(PROC_END);
 			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 #ifdef DEBUG
-		ESP_LOGI(TAG, "%s", b);
+			ESP_LOGI(TAG, "%s", b);
 #endif
-
 		}
 		break;
 
@@ -1283,9 +1364,10 @@ void Distillation(void)
 		break;
 	case PROC_START:
 		// Начало процесса
-		MainStatus = PROC_RAZGON;
+		setNewMainStatus(PROC_RAZGON);
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
+		 /* fall through */
 
 	case PROC_RAZGON:
 		// Разгон до рабочей температуры
@@ -1296,9 +1378,10 @@ void Distillation(void)
 		// Открытие клапана воды
 		openKlp(klp_water);
 
-		MainStatus = PROC_DISTILL;
+		setNewMainStatus(PROC_DISTILL);
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		setPower(getIntParam(DEFL_PARAMS, "powerDistil"));	// Мощность дистилляции
+		 /* fall through */
 
 	case PROC_DISTILL:
 		// Процесс дистилляции
@@ -1308,18 +1391,18 @@ void Distillation(void)
 		}
 
 		secTempPrev = uptime_counter;
-		MainStatus = PROC_WAITEND;			// Переход к окончанию процесса
+		setNewMainStatus(PROC_WAITEND);			// Переход к окончанию процесса
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
+		 /* fall through */
 
 	case PROC_WAITEND:
 		// Отключение нагрева, подача воды для охлаждения
 		setPower(0);		// Снятие мощности с тэна
 		if (uptime_counter - secTempPrev > 180) {
-			MainStatus = PROC_END;
+			setNewMainStatus(PROC_END);
 			SecondsEnd = uptime_counter;
 			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		}
-
 		break;
 
 	case PROC_END:
@@ -1329,7 +1412,6 @@ void Distillation(void)
 		sprintf(b, "Distillation complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
 		sendSMS(b);
 		break;
-
 	}
 }
 
@@ -1507,9 +1589,9 @@ void console_task(void *arg)
 	// Настройка консоли
 	esp_vfs_dev_uart_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
 	esp_vfs_dev_uart_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
-	ESP_ERROR_CHECK(uart_driver_install(CONFIG_CONSOLE_UART_NUM, 256, 0, 0, NULL, 0));
+	ESP_ERROR_CHECK(uart_driver_install(CONFIG_ESP_CONSOLE_UART_NUM, 256, 0, 0, NULL, 0));
 	// Tell VFS to use UART driver
-	esp_vfs_dev_uart_use_driver(CONFIG_CONSOLE_UART_NUM);
+	esp_vfs_dev_uart_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
 	// Инициализация консоли
 	esp_console_config_t console_config = {
 		.max_cmdline_args = 8,
@@ -1568,6 +1650,11 @@ void app_main(void)
 	nvs_flash_init();
         ESP_LOGI(TAG, "RAM left %d", esp_get_free_heap_size());
 
+
+	ESP_ERROR_CHECK(ret = nvs_open("storage", NVS_READWRITE, &nvsHandle));
+	if (ret != ESP_OK) nvsHandle = 0;
+
+
 	/* Настройка SPI */
 	spi_setup();
 
@@ -1594,6 +1681,11 @@ void app_main(void)
 		return;
 	}
 
+	// Получение причины (пере)загрузки
+	resetReason = rtc_get_reset_reason(0);
+	ESP_LOGI(TAG, "Reset reason: %s\n", getResetReasonStr());
+
+
 	TIMERG0.wdt_wprotect=TIMG_WDT_WKEY_VALUE;
 	TIMERG0.wdt_feed=1;
 	TIMERG0.wdt_wprotect=0;
@@ -1610,13 +1702,16 @@ void app_main(void)
 	wsPeriod = getIntParam(NET_PARAMS, "wsPeriod");
 
 	/* Настройка wifi */
-	wifi_setup();
+	wifiSetup();
 
 	/* Чтение настроек */
-	param_setup();
+	paramSetup();
 
 	/* Поиск и настройка датиков темпервтуры и периодический опрос их */
 	xTaskCreate(&ds_task, "ds_task", 4096, NULL, 1, NULL);
+
+	/* Инициализация датчика давления bmp 180 */
+	initBMP085();
 
 	/* Настройка gpio детектора нуля сетевого напряжения */
 	gpio_set_direction(GPIO_DETECT_ZERO, GPIO_MODE_INPUT);
@@ -1688,8 +1783,6 @@ void app_main(void)
 	ESP_ERROR_CHECK(gpio_intr_enable(GPIO_DETECT_ZERO));
 	ESP_LOGI(TAG, "Enabled zero crossing interrupt.\n");
 	if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(false);
-
-
 
 	while (true) {
 		cJSON *ja = getInformation();

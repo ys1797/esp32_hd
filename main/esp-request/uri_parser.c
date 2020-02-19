@@ -162,10 +162,12 @@ parsed_uri_t *parse_uri(const char *url)
                     JUMP_NEXT_STATE(puri->fragment, PARSE_FRAGMENT);
                 }
                 curr_ptr ++;
+		/* fall through */
             case PARSE_QUERY: /* query */
                 if(*curr_ptr == '#') {
                     JUMP_NEXT_STATE(puri->fragment, PARSE_FRAGMENT);
                 }
+		/* fall through */
             case PARSE_FRAGMENT: /* fragment*/
                 curr_ptr ++;
                 break;

@@ -345,8 +345,9 @@ request_t *req_new(const char *uri)
 
 void req_setopt(request_t *req, REQ_OPTS opt, void* data)
 {
+    int ret;
     int post_len;
-    char len_str[10] = {0};
+    char len_str[12] = {0};
     req_list_t *tmp;
     char *host_w_port = malloc(1024);
     if(!req || !data)
@@ -414,9 +415,11 @@ void req_setopt(request_t *req, REQ_OPTS opt, void* data)
         case REQ_SET_POSTFIELDS:
             req_list_set_key(req->header, "Content-Type", "application/x-www-form-urlencoded");
             req_list_set_key(req->opt, "method", "POST");
+	    /* fall through */
         case REQ_SET_DATAFIELDS:
             post_len = strlen((char*)data);
-            sprintf(len_str, "%d", post_len);
+            ret = sprintf(len_str, "%d", post_len);
+	    if (ret < 0) return;
             req_list_set_key(req->opt, "postfield", data);
             req_list_set_key(req->header, "Content-Length", len_str);
             break;
