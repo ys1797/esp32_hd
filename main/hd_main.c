@@ -126,6 +126,7 @@ double tempTube20Prev;		// Запомненое значение темпера�
 uint32_t secTempPrev;		// Отметка времени измеренной температуры 
 double  tempStabSR;		// Температура, относительно которой стабилизируется отбор СР
 int16_t ProcChimSR = 0;		// Текущий процент отбора СР
+double  startPressure = -1;	// Атмосферное давление в начале процесса
 #define COUNT_PWM	15	// Размер таблицы автоподбора шим
 
 typedef struct {
@@ -712,9 +713,8 @@ cJSON* getInformation(void)
 		cJSON_AddItemToObject(ja, "bmpTemperature", cJSON_CreateNumber(bmpTemperature));
 		snprintf(data, sizeof(data)-1, "%0.2f", bmpTruePressure/133.332);
 		cJSON_AddItemToObject(ja, "bmpTruePressure", cJSON_CreateString(data));
-
+		cJSON_AddItemToObject(ja, "bmpPressurePa", cJSON_CreateNumber(bmpTruePressure));
 	}
-
 
 	j = cJSON_CreateArray();
 	cJSON_AddItemToObject(ja, "sensors", j);
@@ -766,6 +766,11 @@ cJSON* getInformation(void)
 		} else {
 			snprintf(data, sizeof(data)-1, "%02.1f C", tempStabSR);
 			cJSON_AddItemToObject(ja, "rect_t_stab", cJSON_CreateString(data));
+		}
+		if (bmpTruePressure > 0 && startPressure > 0) {
+			double diff = startPressure - bmpTruePressure;
+			snprintf(data, sizeof(data)-1, "%02.1f", diff);
+			cJSON_AddItemToObject(ja, "pressureDiff", cJSON_CreateString(data));
 		}
 
 	}
@@ -917,6 +922,7 @@ void setStatus(int next)
 			if (MainStatus == START_WAIT) {
 				setNewMainStatus(PROC_START);
 			} else if (MainStatus == PROC_START) {
+				startPressure = bmpTruePressure; // Фиксация атм. давления.
 				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
 				setNewMainStatus(PROC_RAZGON);
 			} else if (MainStatus == PROC_RAZGON) {
@@ -958,6 +964,7 @@ void setStatus(int next)
 			if (MainStatus == START_WAIT) {
 				setNewMainStatus(PROC_START);
 			} else if (MainStatus == PROC_START) {
+				startPressure = bmpTruePressure; // Фиксация атм. давления.
 				setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
 				setNewMainStatus(PROC_RAZGON);
 			} else if (MainStatus == PROC_RAZGON) {
@@ -1077,7 +1084,7 @@ void Rectification(void)
 	case PROC_RAZGON:
 		// Разгон до рабочей температуры
 		tempEndRectRazgon = getFloatParam(DEFL_PARAMS, "tempEndRectRazgon");
-
+		startPressure = bmpTruePressure; // Фиксация атм. давления.
 		if (tempEndRectRazgon > 0) t = getCubeTemp();
 		else t = getTube20Temp();
 		if (-1 == t) break;
@@ -1364,6 +1371,7 @@ void Distillation(void)
 		break;
 	case PROC_START:
 		// Начало процесса
+		startPressure = bmpTruePressure; // Фиксация атм. давления.
 		setNewMainStatus(PROC_RAZGON);
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		setPower(getIntParam(DEFL_PARAMS, "maxPower"));	//  максимальная мощность для разгона
