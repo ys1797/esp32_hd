@@ -26,7 +26,7 @@ License (MIT license):
 #include "esp_console.h"
 #include "driver/gpio.h"
 #include "driver/i2c.h"
-#include "rom/ets_sys.h"
+#include "esp32/rom/ets_sys.h"
 #include <sys/stat.h>
 #include "argtable3/argtable3.h"
 #include <cJSON.h>
@@ -1149,6 +1149,7 @@ const char *getDsTypeStr(DsType t)
 	}
 }
 
+alarm_mode SavedAlarmMode;
 void ds_task(void *arg)
 {
 	ds2482_init();	// Detect and init DS2482 chip
@@ -1174,10 +1175,13 @@ void ds_task(void *arg)
 				if (DS_ALARM == d->type && d->Ce+d->corr > d->talert) {
 					// Alarm mode
 					AlarmMode = ALARM_TEMP;
-					sendSMS("Temperature alarm");
+					if (SavedAlarmMode != AlarmMode) {
+						sendSMS("Temperature alarm! power switched off!");
+					}
 				} else {
 					AlarmMode &= ~(ALARM_TEMP);
 				}
+				SavedAlarmMode = AlarmMode;
 			}
 		} else {
 			vTaskDelay(1000/portTICK_PERIOD_MS);
