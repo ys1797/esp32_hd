@@ -72,7 +72,7 @@ License (MIT license):
 #define screenW 128
 #define screenH 64
 
-#define GPIO_INPUT_PIN_SEL  (1<<GPIO_DETECT_ZERO) 
+//#define GPIO_INPUT_PIN_SEL  (1<<GPIO_DETECT_ZERO) 
 #define GPIO_OUTPUT_PIN_SEL  (1<<GPIO_BEEP)
 
 volatile int32_t Hpoint = HMAX;
@@ -1725,6 +1725,15 @@ void app_main(void)
 	gpio_set_direction(GPIO_DETECT_ZERO, GPIO_MODE_INPUT);
 	gpio_set_intr_type(GPIO_DETECT_ZERO, GPIO_INTR_NEGEDGE);
 	gpio_set_pull_mode(GPIO_DETECT_ZERO, GPIO_PULLUP_ONLY);
+
+	if (getIntParam(DEFL_PARAMS, "useExernalAlarm")) {
+		/* Настройка gpio внешнего аварийного детектора */
+		gpio_set_direction(GPIO_ALARM, GPIO_MODE_INPUT);
+		gpio_set_intr_type(GPIO_ALARM, GPIO_INTR_NEGEDGE);
+		gpio_set_pull_mode(GPIO_ALARM, GPIO_PULLUP_ONLY);
+	}
+
+	/* Настройка прерываний */
 	ESP_ERROR_CHECK(gpio_isr_register(gpio_isr_handler, NULL, ESP_INTR_FLAG_LEVEL2, NULL));
 
 	// Configure output gpio
@@ -1790,6 +1799,11 @@ void app_main(void)
 
 	ESP_ERROR_CHECK(gpio_intr_enable(GPIO_DETECT_ZERO));
 	ESP_LOGI(TAG, "Enabled zero crossing interrupt.\n");
+
+	if (getIntParam(DEFL_PARAMS, "useExernalAlarm")) {
+		ESP_ERROR_CHECK(gpio_intr_enable(GPIO_ALARM));
+	}
+
 	if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(false);
 
 	while (true) {
