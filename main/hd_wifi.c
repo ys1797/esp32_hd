@@ -27,7 +27,6 @@ License (MIT license):
 #include "freertos/timers.h"
 #include "esp_system.h"
 #include "esp_event.h"
-#include "esp_event_loop.h"
 #include "esp_spiffs.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -255,7 +254,9 @@ esp_err_t wifiSetup(void)
 	/* Получение конфигурации wifi */
 	get_wifi_config();
 
-	tcpip_adapter_init();
+	ESP_ERROR_CHECK(esp_netif_init());
+	ESP_ERROR_CHECK(esp_event_loop_create_default());
+
 	wifi_event_group = xEventGroupCreate();
 	ESP_ERROR_CHECK( esp_event_loop_init(wifi_event_handler, NULL) );
 
