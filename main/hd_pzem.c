@@ -29,7 +29,6 @@ License (MIT license):
 #include "freertos/timers.h"
 #include "esp_system.h"
 #include "esp_event.h"
-#include "esp_event_loop.h"
 #include "esp_spiffs.h"
 #include "esp_vfs_fat.h"
 #include "esp_log.h"
