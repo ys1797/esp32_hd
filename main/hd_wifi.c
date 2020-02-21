@@ -53,84 +53,94 @@ static EventGroupHandle_t wifi_event_group;
 const int CONNECTED_BIT = BIT0;
 const int DISCONNECTED_BIT = BIT1;
 
+static int retryNum = 0;
+
+
 const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT" };
 #define reason2str(r) ((r>176)?system_event_reasons[r-176]:system_event_reasons[r-1])
 
-esp_err_t wifi_event_handler(void *ctx, system_event_t *event)
+static void event_handler(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data)
 {
-	switch(event->event_id) {
-	case SYSTEM_EVENT_SCAN_DONE:
 
-		if (WIFI_scanResult) {
-			free(WIFI_scanResult);
-			WIFI_scanResult = NULL;
-		}
-		esp_wifi_scan_get_ap_num(&WIFI_scanCount);
-		if (WIFI_scanCount) {
-			WIFI_scanResult = calloc(sizeof(wifi_ap_record_t), WIFI_scanCount);
-			if (WIFI_scanResult) {
-				esp_wifi_scan_get_ap_records(&WIFI_scanCount, WIFI_scanResult);
-			} else {
-				WIFI_scanCount = 0;
-			}
-		}
-		WIFI_scanComplete = true;
-		WIFI_scanStarted = false;
-		break;
-	case SYSTEM_EVENT_STA_START:
-		ESP_LOGI(TAG, "WiFi start event");
-		esp_wifi_connect();
-		break;
-	case SYSTEM_EVENT_STA_STOP:
-		ESP_LOGI(TAG, "WiFi stop event");
-		break;
-	case SYSTEM_EVENT_STA_GOT_IP:
+	if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        	ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+		retryNum = 0;
 		xEventGroupClearBits(wifi_event_group, DISCONNECTED_BIT);
 		xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
-		ESP_LOGI(TAG, "got ip: " IPSTR "\n", IP2STR(&event->event_info.got_ip.ip_info.ip));
-		ESP_LOGI(TAG, "netmask: " IPSTR "\n", IP2STR(&event->event_info.got_ip.ip_info.netmask));
-		ESP_LOGI(TAG, "gw: " IPSTR "\n", IP2STR(&event->event_info.got_ip.ip_info.gw));
+		ESP_LOGI(TAG, "got ip: " IPSTR "\n", IP2STR(&event->ip_info.ip));
+		ESP_LOGI(TAG, "netmask: " IPSTR "\n", IP2STR(&event->ip_info.netmask));
+		ESP_LOGI(TAG, "gw: " IPSTR "\n", IP2STR(&event->ip_info.gw));
 		ESP_LOGI(TAG, "Initializing SNTP");
 		setenv("TZ", "MSK-3", 1);
 		sntp_setoperatingmode(SNTP_OPMODE_POLL);
 		sntp_setservername(0, "pool.ntp.org");
 		sntp_init();
 		fflush(stdout);
-		break;
-	case SYSTEM_EVENT_STA_DISCONNECTED:
-		/* This is a workaround as ESP32 WiFi libs don't currently
-		   auto-reassociate. */
-//		int reason = event->event_info.disconnected.reason;
-		sntp_stop();
-		ESP_LOGI(TAG, "WiFi disconnect event, resason: %d", event->event_info.disconnected.reason);
-		
-		if (WIFI_REASON_NO_AP_FOUND == event->event_info.disconnected.reason) {
-			WIFI_currentAp++;
-			if (WIFI_currentAp< WIFI_knowApCount) {
-				wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
-				wifi_config_t wifi_config = { 0 };
-				strlcpy((char*) wifi_config.sta.ssid, w->ssid, sizeof(wifi_config.sta.ssid));
-				if (strlen(w->password)) {
-					strncpy((char*) wifi_config.sta.password, w->password, sizeof(wifi_config.sta.password));
-				}
-				wifi_config.sta.channel = 1;
-				ESP_LOGI(TAG, "New WiFi STA: SSID %s", wifi_config.sta.ssid);
-				ESP_ERROR_CHECK( esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-				ESP_ERROR_CHECK( esp_wifi_start() );
-				esp_wifi_connect();
-			} else {
-				wifi_cmd_ap_set();
+	} else if (event_base == WIFI_EVENT) {
+		switch(event_id) {
+		case SYSTEM_EVENT_SCAN_DONE:
+
+			if (WIFI_scanResult) {
+				free(WIFI_scanResult);
+				WIFI_scanResult = NULL;
 			}
-		} else {
+			esp_wifi_scan_get_ap_num(&WIFI_scanCount);
+			if (WIFI_scanCount) {
+				WIFI_scanResult = calloc(sizeof(wifi_ap_record_t), WIFI_scanCount);
+				if (WIFI_scanResult) {
+					esp_wifi_scan_get_ap_records(&WIFI_scanCount, WIFI_scanResult);
+				} else {
+					WIFI_scanCount = 0;
+				}
+			}
+			WIFI_scanComplete = true;
+			WIFI_scanStarted = false;
+			break;
+		case WIFI_EVENT_STA_START:
+			ESP_LOGI(TAG, "WiFi start event");
 			esp_wifi_connect();
+			break;
+		case WIFI_EVENT_STA_STOP:
+			ESP_LOGI(TAG, "WiFi stop event");
+			break;
+		case WIFI_EVENT_STA_DISCONNECTED:
+			/* This is a workaround as ESP32 WiFi libs don't currently
+			   auto-reassociate. */
+			{
+			wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*) event_data;
+			sntp_stop();
+			ESP_LOGI(TAG, "WiFi disconnect event, resason: %d", event->reason);
+		
+			if (WIFI_REASON_NO_AP_FOUND == event->reason) {
+				WIFI_currentAp++;
+				if (WIFI_currentAp< WIFI_knowApCount) {
+					wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
+					wifi_config_t wifi_config = { 0 };
+					strlcpy((char*) wifi_config.sta.ssid, w->ssid, sizeof(wifi_config.sta.ssid));
+					if (strlen(w->password)) {
+						strncpy((char*) wifi_config.sta.password, w->password, sizeof(wifi_config.sta.password));
+					}
+					wifi_config.sta.channel = 1;
+					ESP_LOGI(TAG, "New WiFi STA: SSID %s", wifi_config.sta.ssid);
+					ESP_ERROR_CHECK( esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+					ESP_ERROR_CHECK( esp_wifi_start() );
+					esp_wifi_connect();
+				} else {
+					wifi_cmd_ap_set();
+				}
+
+			} else {
+				esp_wifi_connect();
+			}
+			xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
+			xEventGroupSetBits(wifi_event_group, DISCONNECTED_BIT);
+			}
+			break;
+		default:
+			break;
 		}
-		xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
-		xEventGroupSetBits(wifi_event_group, DISCONNECTED_BIT);
-		break;
-	default:
-		break;
 	}
-	return ESP_OK;
 }
 
 /*
@@ -250,6 +260,7 @@ int wifi_cmd_ap_set(void)
 esp_err_t wifiSetup(void)
 {
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+	wifi_event_group = xEventGroupCreate();
 
 	/* Получение конфигурации wifi */
 	get_wifi_config();
@@ -257,31 +268,33 @@ esp_err_t wifiSetup(void)
 	ESP_ERROR_CHECK(esp_netif_init());
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-	wifi_event_group = xEventGroupCreate();
-	ESP_ERROR_CHECK( esp_event_loop_init(wifi_event_handler, NULL) );
-
 	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
 	ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
+
+	ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
+	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
+
 
 	if (!WIFI_knowApCount) {
 		// Нет заданных точек доступа - переходим в режим AP
 		wifi_cmd_ap_set();
 	} else {
 		wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
-
 		wifi_config_t wifi_config = { 0 };
+
+		esp_netif_create_default_wifi_sta();
+
 		strlcpy((char*) wifi_config.sta.ssid, w->ssid, sizeof(wifi_config.sta.ssid));
 		if (strlen(w->password)) {
 			strncpy((char*) wifi_config.sta.password, w->password, sizeof(wifi_config.sta.password));
 		}
 		wifi_config.sta.channel = 1;
 
+
 		ESP_LOGI(TAG, "WiFi STA SSID: %s", wifi_config.sta.ssid);
 		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
 		ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-//		ESP_ERROR_CHECK(esp_wifi_set_auto_connect(true));
 		ESP_ERROR_CHECK(esp_wifi_start());
-//		ESP_ERROR_CHECK(esp_wifi_connect());
 	}
 	return ESP_OK;
 }
