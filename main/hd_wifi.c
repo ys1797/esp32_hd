@@ -42,6 +42,9 @@ License (MIT license):
 #include "hd_wifi.h"
 #include "hd_main.h"
 
+#define HD_MAX_STA_CONN       4
+#define HD_ESP_MAXIMUM_RETRY  30
+
 uint16_t WIFI_scanCount;
 bool WIFI_scanStarted;
 bool WIFI_scanComplete;
@@ -54,6 +57,7 @@ const int CONNECTED_BIT = BIT0;
 const int DISCONNECTED_BIT = BIT1;
 
 static int retryNum = 0;
+static char is_connected = 0;
 
 
 const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT" };
@@ -66,6 +70,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 	if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         	ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
 		retryNum = 0;
+		is_connected = 1; // Set connected flag
 		xEventGroupClearBits(wifi_event_group, DISCONNECTED_BIT);
 		xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
 		ESP_LOGI(TAG, "got ip: " IPSTR "\n", IP2STR(&event->ip_info.ip));
@@ -111,8 +116,8 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 			wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*) event_data;
 			sntp_stop();
 			ESP_LOGI(TAG, "WiFi disconnect event, resason: %d", event->reason);
-		
-			if (WIFI_REASON_NO_AP_FOUND == event->reason) {
+
+			if (!is_connected && WIFI_REASON_NO_AP_FOUND == event->reason) {
 				WIFI_currentAp++;
 				if (WIFI_currentAp< WIFI_knowApCount) {
 					wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
@@ -131,10 +136,29 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 				}
 
 			} else {
-				esp_wifi_connect();
+				retryNum++;
+			        if (retryNum < HD_ESP_MAXIMUM_RETRY) {
+					esp_wifi_connect();
+					retryNum++;
+					ESP_LOGI(TAG, "retry to connect to the AP, retry #%d", retryNum);
+				} else {
+					xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
+					xEventGroupSetBits(wifi_event_group, DISCONNECTED_BIT);
+					ESP_LOGI(TAG,"connect to the AP fail");
+			        }
 			}
-			xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
-			xEventGroupSetBits(wifi_event_group, DISCONNECTED_BIT);
+			}
+			break;
+		case WIFI_EVENT_AP_STACONNECTED:
+			{
+			wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+			ESP_LOGI(TAG, "station "MACSTR" join, AID=%d", MAC2STR(event->mac), event->aid);
+			}
+			break;
+		case WIFI_EVENT_AP_STADISCONNECTED:
+			{
+			wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+			ESP_LOGI(TAG, "station "MACSTR" leave, AID=%d", MAC2STR(event->mac), event->aid);
 			}
 			break;
 		default:
@@ -237,18 +261,22 @@ int get_wifi_config(void)
 int wifi_cmd_ap_set(void)
 {
 	wifi_config_t wifi_config = {
-        .ap = {
-		.ssid_len = strlen(Hostname),
-		.max_connection = 4,
-		.password = "",
-		.authmode = WIFI_AUTH_OPEN
-        },
+	        .ap = {
+			.ssid_len = strlen(Hostname),
+			.max_connection = HD_MAX_STA_CONN,
+			.password = "",
+			.authmode = WIFI_AUTH_OPEN
+	        },
 	};
-	esp_wifi_disconnect();
+	esp_netif_create_default_wifi_ap();
+
 	strlcpy((char*) wifi_config.ap.ssid, Hostname, sizeof(wifi_config.sta.ssid));
+
+
+//	esp_wifi_disconnect();
 	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
 	ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
-	ESP_ERROR_CHECK( esp_wifi_start() );
+	ESP_ERROR_CHECK(esp_wifi_start());
 //	captdnsInit();
 	return 0;
 }
