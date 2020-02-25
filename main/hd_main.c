@@ -728,7 +728,9 @@ cJSON* getInformation(void)
 		cJSON_AddItemToObject(jt, "descr", cJSON_CreateString(d->description?d->description:""));
 		cJSON_AddItemToObject(jt, "type_str", cJSON_CreateString(getDsTypeStr(d->type)));
 		cJSON_AddItemToObject(jt, "type", cJSON_CreateNumber(d->type));
-		cJSON_AddItemToObject(jt, "temp", cJSON_CreateNumber(d->Ce));
+		snprintf(data, sizeof(data)-1, "%02.1f", d->Ce);
+		cJSON_AddItemToObject(ja, "temp", cJSON_CreateString(data));
+
 	}
 
 	j = cJSON_CreateArray();
