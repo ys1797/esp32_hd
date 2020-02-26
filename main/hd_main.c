@@ -342,7 +342,7 @@ void pzem_task(void *arg)
 				else Hpoint ++;
 			}
 		}
-		if (Hpoint >= HMAX - TRIAC_GATE_MAX_CYCLES) {
+		if (SetPower > 0 && Hpoint >= (HMAX - TRIAC_GATE_MAX_CYCLES) ) {
 			Hpoint = HMAX - 1 - TRIAC_GATE_MAX_CYCLES;
 		}
 		if (Hpoint<TRIAC_GATE_MAX_CYCLES) Hpoint=TRIAC_GATE_MAX_CYCLES;
@@ -430,6 +430,10 @@ const char *getAlarmModeStr(void)
 	if (AlarmMode & ALARM_NOLOAD) {
 		cnt = sizeof(str) - strlen(str);
 		strncat(str,"  Нет нагрузки", cnt);
+	}
+	if (AlarmMode & ALARM_EXT) {
+		cnt = sizeof(str) - strlen(str);
+		strncat(str,"  Сработал аварийный датчик", cnt);
 	}
 	strcat(str,"</b>");
 	return str;
@@ -622,6 +626,9 @@ void IRAM_ATTR gpio_isr_handler(void* arg)
 
 			gpio_counter++;
 		}
+	} else if (intr_st & (1 << GPIO_ALARM)) {
+		// Авария от внешнего источника
+		AlarmMode |= ALARM_EXT;
 	}
 	GPIO.status_w1tc = intr_st;
 } 
