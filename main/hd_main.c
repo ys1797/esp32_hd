@@ -240,7 +240,7 @@ void temperatureFrame(OLEDDisplayUiState* state, int16_t x, int16_t y)
 	for (int i=0; i<MAX_DS; i++) {
 		DS18 *d = &ds[i];
 		if (!d->is_connected) continue;
-		sprintf(b, " %d %s: %.2f", d->id+1, getDsTypeStr(d->type), d->Ce);
+		sprintf(b, " %d %s: %02.1f", d->id+1, getDsTypeStr(d->type), d->Ce);
 		oledDrawString(x , offset*11 + y+2, b);
 		offset++;
 	}
