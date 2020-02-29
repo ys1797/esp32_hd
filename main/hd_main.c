@@ -736,7 +736,7 @@ cJSON* getInformation(void)
 		cJSON_AddItemToObject(jt, "type_str", cJSON_CreateString(getDsTypeStr(d->type)));
 		cJSON_AddItemToObject(jt, "type", cJSON_CreateNumber(d->type));
 		snprintf(data, sizeof(data)-1, "%02.1f", d->Ce);
-		cJSON_AddItemToObject(ja, "temp", cJSON_CreateString(data));
+		cJSON_AddItemToObject(jt, "temp", cJSON_CreateString(data));
 
 	}
 
