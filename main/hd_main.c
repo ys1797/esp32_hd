@@ -53,30 +53,23 @@ License (MIT license):
 #include <dirent.h>
 #include <cJSON.h>
 #include "lwip/apps/sntp.h"
-#include "sh1106.h"
 #include "ds.h"
 #include "hd_bmp180.h"
 #include "esp_platform.h"
 #include "config.h"
-#include "hd_wifi.h"
 #include "hd_spi_i2c.h"
+#include "hd_wifi.h"
 #include "hd_main.h"
 #include "cgiupdate.h"
 #include "cgiwebsocket.h"
 #include "esp_request.h"
 
-/* I2C address */
-#ifndef DISPLAY_I2C_ADDR
-#define DISPLAY_I2C_ADDR         0x3C//0x78
-#endif
-#define screenW 128
-#define screenH 64
+
 
 //#define GPIO_INPUT_PIN_SEL  (1<<GPIO_DETECT_ZERO) 
 #define GPIO_OUTPUT_PIN_SEL  (1<<GPIO_BEEP)
 
 volatile int32_t Hpoint = HMAX;
-
 
 #define TIMER_DIVIDER   80		/*!< Hardware timer clock divider */
 #define TIMER_SCALE (TIMER_BASE_CLK / TIMER_DIVIDER) /*!< used to calculate counter value */
@@ -89,10 +82,6 @@ char *httpUser;		// Имя пользователя для http
 char *httpPassword;	// Пароль для http
 int httpSecure;		// Спрашивать пароль
 int wsPeriod=5;		// Период обновления данных через websocket
-
-int clockCenterX = screenW/2;
-int clockCenterY = ((screenH-16)/2)+16;   // top yellow part is 16 px height
-int clockRadius = 23;
 
 unsigned char ds1820_devices;                  // Количество датчиков ds18b20
 
@@ -182,99 +171,6 @@ double roundX (double x, int precision)
    else
       return ceil(x * mul - .5) / mul;
 }
-
-
-/*
- * Функция вывода информации на первый экран
- */
-void mainFrame(OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	char b[80];
-	double f;
-	oledSetTextAlignment(TEXT_ALIGN_LEFT);
-	oledSetFont(ArialMT_Plain_16);
-	sprintf(b, "U: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
-	oledDrawString(x , 14 + y, b);
-	f = getCubeTemp();
-	sprintf(b, "Cube: %0.1f", f);
-	oledDrawString(x , 30 + y, b);
-	sprintf(b, "P: %d (h: %d)", CurPower, Hpoint);
-	oledDrawString(x , 46 + y, b);
-
-}
-
-
-void addressFrame(OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	wifi_mode_t mode;
-	tcpip_adapter_if_t ifx = TCPIP_ADAPTER_IF_AP;
-	tcpip_adapter_ip_info_t ip;
-	char b[255];
-
-	oledSetTextAlignment(TEXT_ALIGN_LEFT);
-	oledSetFont(ArialMT_Plain_10);
-
-	esp_wifi_get_mode(&mode);
-	if (WIFI_MODE_STA == mode) ifx = TCPIP_ADAPTER_IF_STA;
-
-	memset(&ip, 0, sizeof(tcpip_adapter_ip_info_t));
-	if (tcpip_adapter_get_ip_info(ifx, &ip) == 0) {
-		sprintf(b, "IP:"IPSTR, IP2STR(&ip.ip));
-		oledDrawString(x , 13 + y, b);
-		sprintf(b, "MASK:"IPSTR, IP2STR(&ip.netmask));
-		oledDrawString(x , 24 + y, b);
-		sprintf(b, "GW:"IPSTR, IP2STR(&ip.gw));
-		oledDrawString(x , 35 + y, b);
-	}
-	sprintf(b, "Uptime: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
-	oledDrawString(x , 46 + y, b);
-}
-
-void temperatureFrame(OLEDDisplayUiState* state, int16_t x, int16_t y)
-{
-	char b[255];
-	uint8_t offset=1;
-
-	oledSetTextAlignment(TEXT_ALIGN_LEFT);
-	oledSetFont(ArialMT_Plain_10);
-	for (int i=0; i<MAX_DS; i++) {
-		DS18 *d = &ds[i];
-		if (!d->is_connected) continue;
-		sprintf(b, " %d %s: %02.1f", d->id+1, getDsTypeStr(d->type), d->Ce);
-		oledDrawString(x , offset*11 + y+2, b);
-		offset++;
-	}
-
-}
-
-
-// This array keeps function pointers to all frames
-// frames are the single views that slide in
-FrameCallback frames[] = {mainFrame, addressFrame, temperatureFrame};
-// how many frames are there?
-int frameCount = 3;
-
-void display_task(void *pvParameter)
-{
-	if (I2C_detect[DISPLAY_I2C_ADDR]) Display_Init(DISPLAY_I2C_ADDR);
-	else Display_Init(0);
-	setTargetFPS(10);
-	setIndicatorPosition(TOP);
-	setIndicatorDirection(LEFT_RIGHT);
-	setFrameAnimation(SLIDE_LEFT);
-	setFrames(frames, frameCount);
-	oledFlipScreenVertically();
-
-	while (1) {
-		UIupdate();
-		vTaskDelay(100/portTICK_PERIOD_MS);
-	}
-}
-
-
-
-
-
 
 extern uint8_t PZEM_Version;	// Device version 3.0 in use ?
 
@@ -497,7 +393,7 @@ static void timer_example_evt_task(void *arg)
 					if (Klp[i].open_time <= 0) continue;
 					ESP_LOGI(TAG, "PWM klp %d -> open", i);
 					// Открываем клапан
-					int ch = Klp[i].channel;
+					ledc_channel_t ch = Klp[i].channel;
 				        LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 1;
 					if (getIntParam(DEFL_PARAMS, "klpSilentNode")) {
 						ledc_set_fade_with_time(LEDC_HIGH_SPEED_MODE, ch, 1023, 1000);
@@ -1671,10 +1567,6 @@ void app_main(void)
 	ESP_ERROR_CHECK(ret = nvs_open("storage", NVS_READWRITE, &nvsHandle));
 	if (ret != ESP_OK) nvsHandle = 0;
 
-
-	/* Настройка SPI */
-	spi_setup();
-
 	// I2C init
 	I2C_Init(I2C_MASTER_NUM, I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO);
 	task_i2cscanner();
@@ -1760,7 +1652,7 @@ void app_main(void)
 	tg0_timer0_init();
 
 	/* Запуск отображения на дисплее */
-	xTaskCreate(&display_task, "display_task", 2048, NULL, 1, NULL);
+	hd_display_init();
 
 	/* Настройка PZEM */
 	xTaskCreate(&pzem_task, "pzem_task", 2048, NULL, 1, NULL);
