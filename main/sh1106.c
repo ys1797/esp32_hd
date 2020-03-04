@@ -101,7 +101,7 @@ static esp_err_t sendCommand(uint8_t command)
 {
 	esp_err_t ret = ESP_OK;
 	if (!Oled.i2c_address) {
-		lcd_cmd(command);
+		spi_cmd(command);
 	} else {
 		uint8_t buff[4];
 		buff[0] = 0x80;
@@ -356,7 +356,7 @@ void UpdateScreen(void) {
 		sendCommand(0x10);
 
 		if (!Oled.i2c_address) {
-			lcd_data(&Display_Buffer[DISPLAY_WIDTH * m], DISPLAY_WIDTH);
+			spi_data(&Display_Buffer[DISPLAY_WIDTH * m], DISPLAY_WIDTH);
 		} else {
 			I2CBuffer[0] = 0x40;
 			memcpy(&I2CBuffer[1], &Display_Buffer[DISPLAY_WIDTH * m], DISPLAY_WIDTH);
