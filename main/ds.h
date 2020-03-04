@@ -24,6 +24,11 @@ License (MIT license):
 #ifndef DS_ONEWIRE_H_
 #define DS_ONEWIRE_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 // Model IDs 
 #define DS18S20MODEL 0x10  // also DS1820 
 #define DS18B20MODEL 0x28 
@@ -162,5 +167,9 @@ const char *getDsTypeStr(DsType t);
 void ds_task(void *arg);
 double getCubeTemp(void);	// Получить температуру в кубе
 double getTube20Temp(void);	// Получить температуру в нижней части колонны
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // DS_ONEWIRE_H_
