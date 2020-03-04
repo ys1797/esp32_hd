@@ -6,5 +6,5 @@
 # in the build directory. This behaviour is entirely configurable,
 # please read the ESP-IDF documents if you need to do this.
 #
-COMPONENT_SRCDIRS := . libesphttpd esp-request md5
-COMPONENT_ADD_INCLUDEDIRS := libesphttpd/include esp-request/include md5
+COMPONENT_SRCDIRS := . libesphttpd esp-request md5 adafruit
+COMPONENT_ADD_INCLUDEDIRS := libesphttpd/include esp-request/include md5 adafruit
