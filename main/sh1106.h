@@ -1,5 +1,11 @@
 #ifndef SH1106_H
 #define SH1106_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #include "freertos/FreeRTOS.h"
 #include "esp_system.h"
 #include "esp_event.h"
@@ -320,6 +326,9 @@ void UIdrawIndicator();
 void UIdrawOverlays();
 uint8_t UIgetNextFrameNumber();
 
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif
