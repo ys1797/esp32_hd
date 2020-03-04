@@ -73,10 +73,12 @@ License (MIT license):
 #define PZEM_TXD  (14)
 #define PZEM_RXD  (13)
 
-#define PIN_NUM_MOSI 23
-#define PIN_NUM_CLK  18
-#define PIN_NUM_DC   21
-#define PIN_NUM_RST  25
+#define SPI_PIN_MOSI 23
+#define SPI_PIN_MISO 19
+#define SPI_PIN_CLK  18
+#define SPI_PIN_DC   21
+#define SPI_PIN_CS   22
+#define SPI_PIN_RST  25
 
 // Тип переменной
 enum variable_type {
