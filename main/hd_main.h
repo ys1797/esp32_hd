@@ -20,6 +20,12 @@ License (MIT license):
   THE SOFTWARE.
 */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void foo(int i);
+
 extern char I2C_detect[128];		/* Список обнаруженных устройств на шине i2c */
 
 // Режимы работы
@@ -139,3 +145,8 @@ void startSrKlp(float topen, float tclose);	// Запуск шима отбора товарного прод
 
 
 int hd_httpd_init(void);	// Запуск http сервера
+int hd_display_init(void);	// Запуск обработчика дисплея
+
+#ifdef __cplusplus
+}
+#endif
