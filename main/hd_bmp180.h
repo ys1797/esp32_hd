@@ -24,9 +24,18 @@ License (MIT license):
 #ifndef BMP180_H_
 #define BMP180_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 extern double bmpTemperature;
 extern double bmpTruePressure;
 
 int initBMP085(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // BMP180_H_
