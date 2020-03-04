@@ -24,8 +24,6 @@ License (MIT license):
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_log.h"
-#include "driver/spi_master.h"
-#include "driver/i2c.h"
 #include "soc/gpio_struct.h"
 #include "driver/gpio.h"
 #include <stdio.h>
@@ -51,7 +49,7 @@ static uint8_t sda_pin;
 static uint8_t scl_pin;
 static xSemaphoreHandle i2c_mux;
 char I2C_detect[128];	/* detectecd i2c devices list */
-
+type_lcd_t lcd_type;	/* detected lcd type on SPI bus */
 
 
 spi_device_handle_t Spi;
@@ -60,7 +58,7 @@ spi_device_handle_t Spi;
  * Отправка команды в LCD. Используется spi_device_transmit,
  * которая ожидает окончания передачи команды.
  */
-void lcd_cmd(const uint8_t cmd) 
+void spi_cmd(const uint8_t cmd) 
 {
 	esp_err_t ret;
 	spi_transaction_t t;
@@ -75,7 +73,7 @@ void lcd_cmd(const uint8_t cmd)
 }
 
 //Send data to the LCD. Uses spi_device_transmit, which waits until the transfer is complete.
-void lcd_data(const uint8_t *data, int len) 
+void spi_data(const uint8_t *data, int len) 
 {
 	esp_err_t ret;
 	spi_transaction_t t;
@@ -90,15 +88,93 @@ void lcd_data(const uint8_t *data, int len)
 	assert(ret==ESP_OK);
 }
 
+void spi_write16(uint16_t w)
+{
+	esp_err_t ret;
+	spi_transaction_t t;
+	uint8_t d[2];
+	
+	d[0] = w >> 8;
+	d[1] = w & 0xFF;
+
+	memset(&t, 0, sizeof(t));
+	t.length=2*8;                 // Размер данных в битах.
+	t.tx_buffer=d;               // Данные
+	t.user=(void*)1;                // линия D/C должна быть установлена в 1
+	xSemaphoreTake(i2c_mux, portMAX_DELAY);
+	ret=spi_device_transmit(Spi, &t);  //Передача данных
+	xSemaphoreGive(i2c_mux);
+	assert(ret==ESP_OK);
+
+}
+
+void spi_write32(uint32_t l)
+{
+	esp_err_t ret;
+	spi_transaction_t t;
+	uint8_t d[4];
+
+	d[0] = (l >> 24) & 0xFF;
+	d[1] = (l >> 16) & 0xFF;
+	d[2] = (l >> 8) & 0xFF;
+	d[3] = l & 0xFF;
+
+	memset(&t, 0, sizeof(t));
+	t.length=4*8;                 // Размер данных в битах.
+	t.tx_buffer=d;               // Данные
+	t.user=(void*)1;                // линия D/C должна быть установлена в 1
+	xSemaphoreTake(i2c_mux, portMAX_DELAY);
+	ret=spi_device_transmit(Spi, &t);  //Передача данных
+	xSemaphoreGive(i2c_mux);
+	assert(ret==ESP_OK);
+
+}
+
+
 /*
  * Функция вызывается (из прерывания!) перед началом передачи по шине.
  * Она должна установить уровень на линии D/C в значение указанное в поле "user".
  */
-void lcd_spi_pre_transfer_callback(spi_transaction_t *t) 
+void spi_pre_transfer_callback(spi_transaction_t *t) 
 {
 	int dc=(int)t->user;
-	gpio_set_level(PIN_NUM_DC, dc);
+	gpio_set_level(SPI_PIN_DC, dc);
 }
+
+uint8_t spi_read8(uint8_t commandByte)
+{
+	spi_transaction_t t;
+
+	spi_cmd(commandByte);
+	memset(&t, 0, sizeof(t));
+	t.length=8;
+	t.flags = SPI_TRANS_USE_RXDATA;
+	t.user = (void*)1;
+	xSemaphoreTake(i2c_mux, portMAX_DELAY);
+	esp_err_t ret = spi_device_polling_transmit(Spi, &t);
+	xSemaphoreGive(i2c_mux);
+	assert( ret == ESP_OK );
+	return *(uint32_t*)t.rx_data;
+}
+
+
+uint32_t lcd_get_id()
+{
+	spi_transaction_t t;
+
+	//get_id cmd
+	spi_cmd(0x04);
+	memset(&t, 0, sizeof(t));
+	t.length=8*3;
+	t.flags = SPI_TRANS_USE_RXDATA;
+	t.user = (void*)1;
+	xSemaphoreTake(i2c_mux, portMAX_DELAY);
+	esp_err_t ret = spi_device_polling_transmit(Spi, &t);
+	xSemaphoreGive(i2c_mux);
+	assert( ret == ESP_OK );
+	return *(uint32_t*)t.rx_data;
+}
+
 
 /*
  * Настройка spi интерфейса
@@ -106,24 +182,38 @@ void lcd_spi_pre_transfer_callback(spi_transaction_t *t)
 void spi_setup(void)
 {
 	esp_err_t ret;
+
+	// Initialize non-SPI GPIOs
+	gpio_set_direction(SPI_PIN_DC, GPIO_MODE_OUTPUT);
+	gpio_set_direction(SPI_PIN_CS, GPIO_MODE_OUTPUT);
+	gpio_set_direction(SPI_PIN_RST, GPIO_MODE_OUTPUT);
+
+	// Отправка команды Reset дисплею
+	gpio_set_level(SPI_PIN_RST, 0);
+	vTaskDelay(100 / portTICK_RATE_MS);
+	gpio_set_level(SPI_PIN_RST, 1);
+	vTaskDelay(100 / portTICK_RATE_MS);
+
+	if (!i2c_mux) i2c_mux = xSemaphoreCreateMutex();
+
 	spi_bus_config_t buscfg={
-		.miso_io_num=-1,
-		.mosi_io_num=PIN_NUM_MOSI,
-		.sclk_io_num=PIN_NUM_CLK,
+		.miso_io_num=SPI_PIN_MISO,
+		.mosi_io_num=SPI_PIN_MOSI,
+		.sclk_io_num=SPI_PIN_CLK,
 		.quadwp_io_num=-1,
 		.quadhd_io_num=-1
 	};
 	spi_device_interface_config_t devcfg={
+#ifdef CONFIG_LCD_OVERCLOCK
+        	.clock_speed_hz=26*1000*1000,	// Частота 26 MHz
+#else
         	.clock_speed_hz=10*1000*1000,	// Частота 10 MHz
+#endif
 		.mode=0,                        //SPI mode 0
-		.spics_io_num=-1,		//CS pin
-		.queue_size=1,			//We want to be able to queue 7 transactions at a time
-		.pre_cb=lcd_spi_pre_transfer_callback,  //Specify pre-transfer callback to handle D/C line
+		.spics_io_num=SPI_PIN_CS,	//CS pin
+		.queue_size=7,			//We want to be able to queue 7 transactions at a time
+		.pre_cb = spi_pre_transfer_callback,  //Specify pre-transfer callback to handle D/C line
 	};
-	// Initialize non-SPI GPIOs
-	gpio_set_direction(PIN_NUM_DC, GPIO_MODE_OUTPUT);
-	gpio_set_direction(PIN_NUM_RST, GPIO_MODE_OUTPUT);
-
 
 	// инициализация SPI шины
 	ret = spi_bus_initialize(VSPI_HOST, &buscfg, 2);
@@ -139,14 +229,18 @@ void spi_setup(void)
 		return;
 	}
 
-
-	// Отправка команды Reset дисплею
-	gpio_set_level(PIN_NUM_RST, 0);
-	vTaskDelay(100 / portTICK_RATE_MS);
-	gpio_set_level(PIN_NUM_RST, 1);
-	vTaskDelay(100 / portTICK_RATE_MS);
-
-	if (!i2c_mux) i2c_mux = xSemaphoreCreateMutex();
+	// detect LCD type
+	uint32_t l = lcd_get_id();
+	ESP_LOGW(TAG, "LCD ID: %08X", l);
+	if (l == 0) {
+		//zero, ili
+		lcd_type = LCD_TYPE_ILI;
+		printf("ILI9341 detected.\n");
+	} else {
+		// none-zero, ST
+		lcd_type = LCD_TYPE_ST;
+		printf("ST7789V detected.\n");
+	}
 	ESP_LOGI(TAG, "SPI initialization complete.");
 }
 
