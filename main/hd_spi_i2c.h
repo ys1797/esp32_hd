@@ -53,7 +53,6 @@ void spi_cmd(const uint8_t cmd);
 void spi_data(const uint8_t *data, int len) ;
 void spi_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1);
 void spi_send_lines(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t *data, uint32_t datasize);
-void spi_send_line_finish(void);
 void spi_write16(const uint16_t w);
 void spi_write32(const uint32_t l);
 uint8_t spi_read8(uint8_t commandByte);
