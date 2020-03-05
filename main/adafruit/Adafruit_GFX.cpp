@@ -35,6 +35,8 @@ POSSIBILITY OF SUCH DAMAGE.
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 #include "Adafruit_GFX.h"
 #include "glcdfont.c"
@@ -1285,6 +1287,41 @@ size_t Adafruit_GFX::write(uint8_t c) {
   return 1;
 }
 
+size_t Adafruit_GFX::write(const uint8_t *buffer, size_t size)
+{
+    size_t n = 0;
+    while(size--) {
+        n += write(*buffer++);
+    }
+    return n;
+}
+
+
+size_t Adafruit_GFX::printf(const char *format, ...)
+{
+    char loc_buf[64];
+    char * temp = loc_buf;
+    va_list arg;
+    va_list copy;
+    va_start(arg, format);
+    va_copy(copy, arg);
+    size_t len = vsnprintf(NULL, 0, format, arg);
+    va_end(copy);
+    if(len >= sizeof(loc_buf)){
+        temp = new char[len+1];
+        if(temp == NULL) {
+            return 0;
+        }
+    }
+    len = vsnprintf(temp, len+1, format, arg);
+    write((uint8_t*)temp, len);
+    va_end(arg);
+    if(len > 64){
+        delete[] temp;
+    }
+    return len;
+}
+
 /**************************************************************************/
 /*!
     @brief   Set text 'magnification' size. Each increase in s makes 1 pixel
@@ -1532,9 +1569,9 @@ GFXcanvas1::~GFXcanvas1(void) {
 void GFXcanvas1::drawPixel(int16_t x, int16_t y, uint16_t color) {
 #ifdef __AVR__
   // Bitmask tables of 0x80>>X and ~(0x80>>X), because X>>Y is slow on AVR
-  static const uint8_t PROGMEM GFXsetBit[] = {0x80, 0x40, 0x20, 0x10,
+  static const uint8_t GFXsetBit[] = {0x80, 0x40, 0x20, 0x10,
                                               0x08, 0x04, 0x02, 0x01},
-                               GFXclrBit[] = {0x7F, 0xBF, 0xDF, 0xEF,
+                       GFXclrBit[] = {0x7F, 0xBF, 0xDF, 0xEF,
                                               0xF7, 0xFB, 0xFD, 0xFE};
 #endif
 
