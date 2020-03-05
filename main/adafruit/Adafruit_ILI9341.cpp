@@ -48,6 +48,8 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_system.h"
+#include "esp_log.h"
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -238,13 +240,7 @@ void Adafruit_ILI9341::setScrollMargins(uint16_t top, uint16_t bottom) {
 void Adafruit_ILI9341::setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1,
                                      uint16_t y1) {
 //  uint16_t x1 = (x0 + w - 1), y1 = (y0 + h - 1);
-  spi_cmd(ILI9341_CASET); // Column address set
-  spi_write16(x0);
-  spi_write16(x1);
-  spi_cmd(ILI9341_PASET); // Row address set
-  spi_write16(y0);
-  spi_write16(y1);
-  spi_cmd(ILI9341_RAMWR); // Write to RAM
+  spi_set_window(x0, y0, x1, y1);
 }
 
 /**************************************************************************/
@@ -273,28 +269,60 @@ void Adafruit_ILI9341::sendCommand(uint8_t commandByte, uint8_t *dataBytes,
 void Adafruit_ILI9341::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
 	if((x < 0) ||(x >= _width) || (y < 0) || (y >= _height)) return;
-	setAddrWindow(x, y, x+1, y+1);
+	spi_set_window(x, y, x+1, y+1);
 	spi_write16(SWAPBYTES(color));
 }
 
 	
 void Adafruit_ILI9341::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 {	// Rudimentary clipping
-	if((x >= _width) || (y >= _height)) return;
+	uint32_t *line;
+	uint32_t i, linesize;
+	uint32_t word;
 
-	if((y+h-1) >= _height)
-		h = _height-y;
+	if ((x >= _width) || (y >= _height)) return;
+	if ((y+h-1) >= _height) h = _height-y;
 
-	setAddrWindow(x, y, x, y+h-1);
-	transmitData(SWAPBYTES(color), h);
+	color = SWAPBYTES(color);
+	word = (color << 16) | color;
+
+	linesize = h*sizeof(uint32_t);
+        line = (uint32_t *) malloc(linesize);
+        for(i = 0; i<linesize; i++) {
+            line[i] = word;
+        }
+
+	spi_send_lines(x, y, x, y+h-1, (uint8_t*)line, linesize);
+	free(line);
+
+
+//	transmitData(SWAPBYTES(color), h);
 }
 
 void Adafruit_ILI9341::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) 
 {	// Rudimentary clipping
-	if((x >= _width) || (y >= _height)) return;
-	if((x+w-1) >= _width)  w = _width-x;
-	setAddrWindow(x, y, x+w-1, y+1);
-	transmitData(SWAPBYTES(color), w);
+	uint32_t *line;
+	uint32_t i, linesize;
+	uint32_t word;
+
+	if ((x >= _width) || (y >= _height)) return;
+	if ((x+w-1) >= _width)  w = _width-x;
+
+	color = SWAPBYTES(color);
+	word = (color << 16) | color;
+
+	spi_set_window(x, y, x+w-1, y+1);
+
+	linesize = w*sizeof(uint32_t);
+        line = (uint32_t *) malloc(linesize);
+        for(i = 0; i<linesize; i++) {
+            line[i] = word;
+        }
+
+	spi_send_lines(x, y, x+w-1, y+1, (uint8_t*)line, linesize);
+	free(line);
+
+//	transmitData(SWAPBYTES(color), w);
 }
 
 void Adafruit_ILI9341::fillScreen(uint16_t color) 
@@ -309,7 +337,7 @@ void Adafruit_ILI9341::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint
 	if((x + w - 1) >= _width)  w = _width  - x;
 	if((y + h - 1) >= _height) h = _height - y;
 
-	setAddrWindow(x, y, x+w-1, y+h-1);
+	spi_set_window(x, y, x+w-1, y+h-1);
 	transmitData(SWAPBYTES(color), h*w);
 }
 
@@ -317,18 +345,17 @@ void Adafruit_ILI9341::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint
 
 void Adafruit_ILI9341::transmitData(uint16_t data, int32_t repeats)
 {
-    uint32_t i;
-    uint32_t word = (data << 16) | data;
-    uint32_t word_tmp[64];
+	uint32_t i, word = (data << 16) | data;
+	uint32_t word_tmp[64];
 
         for(i = 0; i<64; i++) {
             word_tmp[i] = word;
         }
 
 
-    while(repeats > 0) {
-        uint16_t bytes_to_transfer = __min(repeats * 2, 64);
-	spi_data((uint8_t*)word_tmp, bytes_to_transfer);
-        repeats -= bytes_to_transfer / 2;
-    }
+	while (repeats > 0) {
+		uint16_t bytes_to_transfer = __min(repeats * 4, 64*4);
+		spi_data((uint8_t*)word_tmp, bytes_to_transfer);
+        	repeats -= bytes_to_transfer / 4;
+	}
 }
