@@ -22,6 +22,7 @@ License (MIT license):
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <sys/types.h>
+#include "esp_log.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
@@ -127,16 +128,42 @@ int frameCount = 3;
 
 void display_task(void *pvParameter)
 {
-	setTargetFPS(10);
-	setIndicatorPosition(TOP);
-	setIndicatorDirection(LEFT_RIGHT);
-	setFrameAnimation(SLIDE_LEFT);
-	setFrames(frames, frameCount);
-	oledFlipScreenVertically();
+	char b[80];
+
+	if (lcd_type == LCD_TYPE_ILI) {
+		Tft->setTextColor(ILI9341_WHITE);
+		Tft->setTextSize(2);
+	} else {
+		setTargetFPS(10);
+		setIndicatorPosition(TOP);
+		setIndicatorDirection(LEFT_RIGHT);
+		setFrameAnimation(SLIDE_LEFT);
+		setFrames(frames, frameCount);
+		oledFlipScreenVertically();
+	}
 
 	while (1) {
-		UIupdate();
-		vTaskDelay(100/portTICK_PERIOD_MS);
+		if (lcd_type == LCD_TYPE_ILI) {
+			sprintf(b, "Uptime: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
+			Tft->fillRect(0, 0, 320, 22, ILI9341_BLACK);
+			Tft->setCursor(0, 0);
+			Tft->printf("%s", b);
+
+			sprintf(b, "Cube: %0.1f", getCubeTemp());
+			Tft->fillRect(0, 23, 320, 22, ILI9341_BLACK);
+			Tft->setCursor(0, 23);
+			Tft->printf("%s", b);
+
+			sprintf(b, "P: %d (h: %d)", CurPower, Hpoint);
+			Tft->fillRect(0, 46, 320, 22, ILI9341_BLACK);
+			Tft->setCursor(0, 46);
+			Tft->printf("%s", b);
+			vTaskDelay(2000/portTICK_PERIOD_MS);
+		} else {
+			UIupdate();
+			vTaskDelay(100/portTICK_PERIOD_MS);
+		}
+
 	}
 }
 
@@ -150,16 +177,18 @@ int hd_display_init()
 	spi_setup();
 
 	if (lcd_type == LCD_TYPE_ILI) {
+		ESP_LOGI(TAG, "Init ILI9341 display");
 		Tft = new(Adafruit_ILI9341);
+		Tft->begin();
+		Tft->setRotation(1);
+		Tft->fillScreen(ILI9341_BLACK);
 	} else {
         	// none-zero, ST
 		if (I2C_detect[DISPLAY_I2C_ADDR]) Display_Init(DISPLAY_I2C_ADDR);
 		else Display_Init(0);
-
-		/* Запуск отображения на дисплее */
-		xTaskCreate(&display_task, "display_task", 2048, NULL, 1, NULL);
-
         }
+	/* Запуск отображения на дисплее */
+	xTaskCreate(&display_task, "display_task", 2048, NULL, 1, NULL);
 	return 0;
 }
 
