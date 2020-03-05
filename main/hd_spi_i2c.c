@@ -95,6 +95,88 @@ void spi_data(const uint8_t *data, int len)
 	assert(ret==ESP_OK);
 }
 
+void spi_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
+	esp_err_t ret;
+	int x;
+	static spi_transaction_t trans[5];
+
+	for (x=0; x<5; x++) {
+		memset(&trans[x], 0, sizeof(spi_transaction_t));
+		if ((x&1)==0) {
+			// Even transfers are commands
+			trans[x].length=8;
+			trans[x].user=(void*)0;
+		} else {
+			//Odd transfers are data
+			trans[x].length=8*4;
+			trans[x].user=(void*)1;
+		}
+		trans[x].flags=SPI_TRANS_USE_TXDATA;
+	}
+
+	trans[0].tx_data[0]=0x2A;	//Column Address Set
+	trans[1].tx_data[0]=x0>>8;	//Start Col High
+	trans[1].tx_data[1]=x0 & 0xFF;	//Start Col Low
+	trans[1].tx_data[2]=x1>>8;	//End Col High
+	trans[1].tx_data[3]=x1 & 0xff;	//End Col Low
+	trans[2].tx_data[0]=0x2B;	//Page address set
+	trans[3].tx_data[0]=y0>>8;	//Start page high
+	trans[3].tx_data[1]=y0 & 0xff;	//start page low
+	trans[3].tx_data[2]=y1>>8;	//end page high
+	trans[3].tx_data[3]=y1&0xff;	//end page low
+	trans[4].tx_data[0]=0x2C;	//memory write
+
+	//Queue all transactions.
+	for (x=0; x<5; x++) {
+		ret=spi_device_transmit(Spi, &trans[x]);
+		assert(ret==ESP_OK);
+	}
+}
+
+
+void spi_send_lines(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t *data, uint32_t datasize)
+{
+	esp_err_t ret;
+	int x;
+	static spi_transaction_t trans[6];
+
+	for (x=0; x<6; x++) {
+		memset(&trans[x], 0, sizeof(spi_transaction_t));
+		if ((x&1)==0) {
+			// Even transfers are commands
+			trans[x].length=8;
+			trans[x].user=(void*)0;
+		} else {
+			//Odd transfers are data
+			trans[x].length=8*4;
+			trans[x].user=(void*)1;
+		}
+		trans[x].flags=SPI_TRANS_USE_TXDATA;
+	}
+
+	trans[0].tx_data[0]=0x2A;	//Column Address Set
+	trans[1].tx_data[0]=x0>>8;	//Start Col High
+	trans[1].tx_data[1]=x0 & 0xFF;	//Start Col Low
+	trans[1].tx_data[2]=x1>>8;	//End Col High
+	trans[1].tx_data[3]=x1 & 0xff;	//End Col Low
+	trans[2].tx_data[0]=0x2B;	//Page address set
+	trans[3].tx_data[0]=y0>>8;	//Start page high
+	trans[3].tx_data[1]=y0 & 0xff;	//start page low
+	trans[3].tx_data[2]=y1>>8;	//end page high
+	trans[3].tx_data[3]=y1&0xff;	//end page low
+	trans[4].tx_data[0]=0x2C;	//memory write
+	trans[5].tx_buffer=data;	//finally send the line data
+	trans[5].length=datasize*8;	//Data length, in bits
+	trans[5].flags=0; //undo SPI_TRANS_USE_TXDATA flag
+
+	//Queue all transactions.
+	for (x=0; x<5; x++) {
+		ret=spi_device_transmit(Spi, &trans[x]);
+		assert(ret==ESP_OK);
+	}
+}
+
 void spi_write16(uint16_t w)
 {
 	esp_err_t ret;
