@@ -71,6 +71,8 @@
 #define MADCTL_BGR 0x08 ///< Blue-Green-Red pixel order
 #define MADCTL_MH 0x04  ///< LCD refresh right to left
 
+#define __min(a,b) ((a > b) ? (b):(a))
+
 
 /**************************************************************************/
 /*!
@@ -233,15 +235,15 @@ void Adafruit_ILI9341::setScrollMargins(uint16_t top, uint16_t bottom) {
     @param   h   Height of rectangle
 */
 /**************************************************************************/
-void Adafruit_ILI9341::setAddrWindow(uint16_t x1, uint16_t y1, uint16_t w,
-                                     uint16_t h) {
-  uint16_t x2 = (x1 + w - 1), y2 = (y1 + h - 1);
+void Adafruit_ILI9341::setAddrWindow(uint16_t x0, uint16_t y0, uint16_t x1,
+                                     uint16_t y1) {
+//  uint16_t x1 = (x0 + w - 1), y1 = (y0 + h - 1);
   spi_cmd(ILI9341_CASET); // Column address set
+  spi_write16(x0);
   spi_write16(x1);
-  spi_write16(x2);
   spi_cmd(ILI9341_PASET); // Row address set
+  spi_write16(y0);
   spi_write16(y1);
-  spi_write16(y2);
   spi_cmd(ILI9341_RAMWR); // Write to RAM
 }
 
@@ -273,4 +275,60 @@ void Adafruit_ILI9341::drawPixel(int16_t x, int16_t y, uint16_t color)
 	if((x < 0) ||(x >= _width) || (y < 0) || (y >= _height)) return;
 	setAddrWindow(x, y, x+1, y+1);
 	spi_write16(SWAPBYTES(color));
+}
+
+	
+void Adafruit_ILI9341::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
+{	// Rudimentary clipping
+	if((x >= _width) || (y >= _height)) return;
+
+	if((y+h-1) >= _height)
+		h = _height-y;
+
+	setAddrWindow(x, y, x, y+h-1);
+	transmitData(SWAPBYTES(color), h);
+}
+
+void Adafruit_ILI9341::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) 
+{	// Rudimentary clipping
+	if((x >= _width) || (y >= _height)) return;
+	if((x+w-1) >= _width)  w = _width-x;
+	setAddrWindow(x, y, x+w-1, y+1);
+	transmitData(SWAPBYTES(color), w);
+}
+
+void Adafruit_ILI9341::fillScreen(uint16_t color) 
+{
+	fillRect(0, 0,  _width, _height, color);
+}
+
+// fill a rectangle
+void Adafruit_ILI9341::fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color) 
+{	// rudimentary clipping (drawChar w/big text requires this)
+	if((x >= _width) || (y >= _height)) return;
+	if((x + w - 1) >= _width)  w = _width  - x;
+	if((y + h - 1) >= _height) h = _height - y;
+
+	setAddrWindow(x, y, x+w-1, y+h-1);
+	transmitData(SWAPBYTES(color), h*w);
+}
+
+
+
+void Adafruit_ILI9341::transmitData(uint16_t data, int32_t repeats)
+{
+    uint32_t i;
+    uint32_t word = (data << 16) | data;
+    uint32_t word_tmp[64];
+
+        for(i = 0; i<64; i++) {
+            word_tmp[i] = word;
+        }
+
+
+    while(repeats > 0) {
+        uint16_t bytes_to_transfer = __min(repeats * 2, 64);
+	spi_data((uint8_t*)word_tmp, bytes_to_transfer);
+        repeats -= bytes_to_transfer / 2;
+    }
 }
