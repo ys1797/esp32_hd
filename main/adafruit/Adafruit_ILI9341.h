@@ -134,11 +134,16 @@ public:
 	void scrollTo(uint16_t y);
 	void setScrollMargins(uint16_t top, uint16_t bottom);
 	void drawPixel(int16_t x, int16_t y, uint16_t color);
+	void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
+	void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color) ;
+	void fillScreen(uint16_t color);
+	void fillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
 	// Transaction API not used by GFX
 	void setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
 	uint8_t readcommand8(uint8_t reg, uint8_t index = 0);
 	void sendCommand(uint8_t commandByte, uint8_t *dataBytes, uint8_t numDataBytes);
+	void transmitData(uint16_t data, int32_t repeats);
 
 };
 
