@@ -32,6 +32,13 @@ License (MIT license):
 #include "config.h"
 #include "hd_spi_i2c.h"
 
+//To speed up transfers, every SPI transfer sends a bunch of lines. This define specifies how many. More means more memory use,
+//but less overhead for setting up / finishing transfers. Make sure 240 is dividable by this.
+#define PARALLEL_LINES 16
+
+
+//#define CONFIG_LCD_OVERCLOCK 1
+
 #define I2C_MASTER_TX_BUF_DISABLE   0   /*!< I2C master do not need buffer */
 #define I2C_MASTER_RX_BUF_DISABLE   0   /*!< I2C master do not need buffer */
 #define I2C_MASTER_FREQ_HZ    100000   /*!< I2C master clock frequency */
@@ -201,11 +208,12 @@ void spi_setup(void)
 		.mosi_io_num=SPI_PIN_MOSI,
 		.sclk_io_num=SPI_PIN_CLK,
 		.quadwp_io_num=-1,
-		.quadhd_io_num=-1
+		.quadhd_io_num=-1,
+		.max_transfer_sz=PARALLEL_LINES*320*2+8
 	};
 	spi_device_interface_config_t devcfg={
 #ifdef CONFIG_LCD_OVERCLOCK
-        	.clock_speed_hz=26*1000*1000,	// Частота 26 MHz
+	      	.clock_speed_hz=26*1000*1000,	// Частота 26 MHz
 #else
         	.clock_speed_hz=10*1000*1000,	// Частота 10 MHz
 #endif
