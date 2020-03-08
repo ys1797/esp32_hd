@@ -176,7 +176,7 @@ int hd_display_init()
 	/* Настройка SPI */
 	spi_setup();
 
-	if (lcd_type == LCD_TYPE_ILI) {
+	if (0 && lcd_type == LCD_TYPE_ILI) {
 		ESP_LOGI(TAG, "Init ILI9341 display");
 		Tft = new(Adafruit_ILI9341);
 		Tft->begin();
