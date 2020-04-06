@@ -41,7 +41,6 @@ int ICACHE_FLASH_ATTR cgiEspFsHook(HttpdConnData *connData) {
 			//Open the file so we can read it.
 			sprintf(filename, "/s%s", connData->url);
 		}
-printf("filename %s\n", filename);
 		file = fopen(filename, "r");
 		if (file==NULL) {
 			return HTTPD_CGI_NOTFOUND;
