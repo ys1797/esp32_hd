@@ -128,8 +128,6 @@ int frameCount = 3;
 
 void display_task(void *pvParameter)
 {
-	char b[80];
-
 	if (lcd_type == LCD_TYPE_ILI) {
 		Tft->setTextColor(ILI9341_WHITE);
 		Tft->setTextSize(2);
@@ -143,8 +141,11 @@ void display_task(void *pvParameter)
 	}
 
 	while (1) {
+/*
 		if (lcd_type == LCD_TYPE_ILI) {
+			char b[80];
 			sprintf(b, "Uptime: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
+
 			Tft->fillRect(0, 0, 320, 22, ILI9341_BLACK);
 			Tft->setCursor(0, 0);
 			Tft->printf("%s", b);
@@ -160,9 +161,10 @@ void display_task(void *pvParameter)
 			Tft->printf("%s", b);
 			vTaskDelay(2000/portTICK_PERIOD_MS);
 		} else {
+*/
 			UIupdate();
 			vTaskDelay(100/portTICK_PERIOD_MS);
-		}
+//		}
 
 	}
 }
