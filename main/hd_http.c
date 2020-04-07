@@ -1175,7 +1175,7 @@ int httpDeleteWiFi(HttpdConnData *connData)
 int httpDefault(HttpdConnData *connData) {
 	FILE *file=connData->cgiData;
 	int len;
-	char buff[512];
+	char buff[128];
 	
 	if (connData->conn==NULL) {
 		//Connection aborted. Clean up.
