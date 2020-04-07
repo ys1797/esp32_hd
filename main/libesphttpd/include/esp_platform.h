@@ -26,7 +26,6 @@ typedef int32_t int32;
 #include "esp_attr.h"
 #include "esp_spi_flash.h"
 
-
 #include "platform.h"
 #include "espmissingincludes.h"
 

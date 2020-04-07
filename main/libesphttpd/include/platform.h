@@ -4,6 +4,8 @@
 #include <esp_platform.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
 //#include "esp_timer.h"
 typedef struct RtosConnType RtosConnType;
 typedef RtosConnType* ConnTypePtr;

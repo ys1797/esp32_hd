@@ -26,6 +26,8 @@
 #define HTTPD_TRANSFER_CHUNKED 1
 #define HTTPD_TRANSFER_NONE 2
 
+extern xSemaphoreHandle wsLock;
+
 typedef struct HttpdPriv HttpdPriv;
 typedef struct HttpdConnData HttpdConnData;
 typedef struct HttpdPostData HttpdPostData;

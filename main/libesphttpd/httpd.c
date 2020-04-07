@@ -19,6 +19,8 @@ Esp8266 http server - core routines
 //This gets set at init time.
 static HttpdBuiltInUrl *builtInUrls;
 
+xSemaphoreHandle wsLock;
+
 typedef struct HttpSendBacklogItem HttpSendBacklogItem;
 
 struct HttpSendBacklogItem {
@@ -847,6 +849,9 @@ void ICACHE_FLASH_ATTR httpdInit(HttpdBuiltInUrl *fixedUrls, int port) {
 		connData[i]=NULL;
 	}
 	builtInUrls=fixedUrls;
+
+	if (!wsLock) wsLock = xSemaphoreCreateMutex();
+	ESP_ERROR_CHECK(!wsLock);
 
 	httpdPlatInit(port, HTTPD_MAX_CONNECTIONS);
 	httpd_printf("Httpd init\n");
