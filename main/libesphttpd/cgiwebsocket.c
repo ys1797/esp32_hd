@@ -121,6 +121,7 @@ int ICACHE_FLASH_ATTR cgiWebsocketSend(Websock *ws, char *data, int len, int fla
 
 //Broadcast data to all websockets at a specific url. Returns the amount of connections sent to.
 int ICACHE_FLASH_ATTR cgiWebsockBroadcast(char *resource, char *data, int len, int flags) {
+	xSemaphoreTake(wsLock, portMAX_DELAY);
 	Websock *lw=llStart;
 	int ret=0;
 	while (lw!=NULL) {
@@ -132,6 +133,7 @@ int ICACHE_FLASH_ATTR cgiWebsockBroadcast(char *resource, char *data, int len, i
 		}
 		lw=lw->priv->next;
 	}
+	xSemaphoreGive(wsLock);
 	return ret;
 }
 
@@ -147,6 +149,7 @@ void ICACHE_FLASH_ATTR cgiWebsocketClose(Websock *ws, int reason) {
 
 static void ICACHE_FLASH_ATTR websockFree(Websock *ws) {
 	httpd_printf("Ws: Free\n");
+	xSemaphoreTake(wsLock, portMAX_DELAY);
 	if (ws->closeCb) ws->closeCb(ws);
 	//Clean up linked list
 	if (llStart==ws) {
@@ -158,6 +161,7 @@ static void ICACHE_FLASH_ATTR websockFree(Websock *ws) {
 		if (lws!=NULL) lws->priv->next=ws->priv->next;
 	}
 	if (ws->priv) free(ws->priv);
+	xSemaphoreGive(wsLock);
 }
 
 int ICACHE_FLASH_ATTR cgiWebSocketRecv(HttpdConnData *connData, char *data, int len) {
@@ -327,6 +331,12 @@ int ICACHE_FLASH_ATTR cgiWebsocket(HttpdConnData *connData) {
 				httpdHeader(connData, "Connection", "upgrade");
 				base64_encode(20, sha1_result(&s), sizeof(buff), buff);
 				httpdHeader(connData, "Sec-WebSocket-Accept", buff);
+
+				i=httpdGetHeader(connData, "Sec-WebSocket-Protocol", buff, sizeof(buff)-1);
+				if (i) {
+					httpdHeader(connData, "Sec-WebSocket-Protocol", buff);
+				}
+
 				httpdEndHeaders(connData);
 				//Set data receive handler
 				connData->recvHdl=cgiWebSocketRecv;
@@ -337,6 +347,7 @@ int ICACHE_FLASH_ATTR cgiWebsocket(HttpdConnData *connData) {
 //				WsConnectedCb connCb=connData->cgiArg;
 //				connCb(ws);
 				//Insert ws into linked list
+				xSemaphoreTake(wsLock, portMAX_DELAY);
 				if (llStart==NULL) {
 					llStart=ws;
 				} else {
@@ -344,6 +355,7 @@ int ICACHE_FLASH_ATTR cgiWebsocket(HttpdConnData *connData) {
 					while (lw->priv->next) lw=lw->priv->next;
 					lw->priv->next=ws;
 				}
+				xSemaphoreGive(wsLock);
 				return HTTPD_CGI_MORE;
 			}
 		}
