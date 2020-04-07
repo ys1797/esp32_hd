@@ -1209,9 +1209,9 @@ int httpDefault(HttpdConnData *connData) {
 
 		connData->cgiData=file;
 		httpdStartResponse(connData, 200);
-		httpdHeader(connData, "Cache-Control", "no-cache, no-store, must-revalidate");
-		httpdHeader(connData, "Pragma", "no-cache");
-		httpdHeader(connData, "Expires", "-1");
+//		httpdHeader(connData, "Cache-Control", "no-cache, no-store, must-revalidate");
+//		httpdHeader(connData, "Pragma", "no-cache");
+//		httpdHeader(connData, "Expires", "-1");
         	httpdHeader(connData, "Content-Type", httpdGetMimetype(connData->url));
 //		if (isGzip) {
 //			httpdHeader(connData, "Content-Encoding", "gzip");
