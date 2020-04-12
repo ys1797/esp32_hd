@@ -221,13 +221,11 @@ void pzem_task(void *arg)
 			int delta = abs(SetPower - CurPower);
 //			int p5 = SetPower/20;
 			char inc = SetPower > CurPower;
-/*
+
 			if (delta > 200 ) {
 				if (inc) Hpoint -= 50; 
 				else Hpoint += 50;
-			} else
-*/
-			 if (delta > 50) {
+			} else if (delta > 50) {
 				if (inc) Hpoint -= 10; 
 				else Hpoint += 10;
 			} else  if (delta > 10) {
@@ -557,9 +555,11 @@ void setProcessGpio(int on)
 /* Загрузка и установка параметров работы */
 int paramSetup(void)
 {
+	int16_t pw;
 	if (!nvsHandle) return -1;
 
-	nvs_get_i16(nvsHandle, "SetPower", &SetPower);
+	nvs_get_i16(nvsHandle, "SetPower", &pw);
+	setPower(pw);
 	nvs_get_i16(nvsHandle, "MainMode", (int16_t*)&MainMode);
 	nvs_get_i16(nvsHandle, "MainStatus", &MainStatus);
 
@@ -720,8 +720,16 @@ void sendSMS(char *text)
 // Установка рабочей мощности
 void setPower(int16_t pw)
 {
-	if (pw > getIntParam(DEFL_PARAMS, "maxPower")) SetPower = getIntParam(DEFL_PARAMS, "maxPower");
+	int16_t mp;
+	mp = getIntParam(DEFL_PARAMS, "maxPower");
+	if (pw > mp) SetPower = mp;
 	else SetPower = pw;
+
+	if (pw > mp/2) {
+		LEDC.channel_group[0].channel[0].duty.duty = (TRIAC_GATE_IMPULSE_CYCLES*3) << 4;
+	} else {
+		LEDC.channel_group[0].channel[0].duty.duty = TRIAC_GATE_IMPULSE_CYCLES << 4;
+	}
 
 	if (pw>0) setProcessGpio(1);
 	else setProcessGpio(0);
