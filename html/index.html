@@ -100,7 +100,6 @@ input.buttons {
 <script>
 var Id;
 var extColdConnected=0;
-$.ajaxSetup({async: false});
 
 (function() {
 
@@ -778,6 +777,8 @@ disp_main = function() {
   $(".modes").hide();
 
   $.get('/maininfo', {}, function(d) {
+	$(".time").html(d.time);
+        $(".uptime").html(d.uptime);
 	$(".MainMode").val(d.MainMode);
 	$(".MainModeStr").html(d.MainModeStr);
 	$(".MainStatusStr").html(d.MainStatusStr);
@@ -819,6 +820,14 @@ disp_main = function() {
 	else $(".TempWaterOut").html(d.TempWaterOut);
 	if (eval(d.WaterFlow)<0) $(".WaterFlow").html("Нет данных");
 	else $(".WaterFlow").html(d.WaterFlow);
+
+	if (typeof(d.bmpTemperature) != "undefined") {
+		$(".bmpTemperature").html(" T: "+d.bmpTemperature+ " C");
+        }
+        if (typeof(d.bmpTruePressure) != "undefined") {
+                $(".bmpTruePressure").html(" P: "+d.bmpTruePressure+" mm.");
+        }
+	  
 	$("#sw_mode").show();
 	$("#prev_status").show();
 	$("#next_status").show();
