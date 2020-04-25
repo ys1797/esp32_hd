@@ -26,57 +26,57 @@ extern "C" {
 
 void foo(int i);
 
-extern char I2C_detect[128];		/* Список обнаруженных устройств на шине i2c */
+extern char I2C_detect[128];		/* РЎРїРёСЃРѕРє РѕР±РЅР°СЂСѓР¶РµРЅРЅС‹С… СѓСЃС‚СЂРѕР№СЃС‚РІ РЅР° С€РёРЅРµ i2c */
 
-// Режимы работы
+// Р РµР¶РёРјС‹ СЂР°Р±РѕС‚С‹
 typedef enum {
-        MODE_IDLE=0,		// Режим мониторинга
-        MODE_POWEERREG=1,	// Режим регулятора мощности
-	MODE_DISTIL=2,		// Режим дистилляции
-	MODE_RECTIFICATION=3,	// Режим ректификации
-	MODE_TESTKLP=10,	// Режим тестирования клапанов
+        MODE_IDLE=0,		// Р РµР¶РёРј РјРѕРЅРёС‚РѕСЂРёРЅРіР°
+        MODE_POWEERREG=1,	// Р РµР¶РёРј СЂРµРіСѓР»СЏС‚РѕСЂР° РјРѕС‰РЅРѕСЃС‚Рё
+	MODE_DISTIL=2,		// Р РµР¶РёРј РґРёСЃС‚РёР»Р»СЏС†РёРё
+	MODE_RECTIFICATION=3,	// Р РµР¶РёРј СЂРµРєС‚РёС„РёРєР°С†РёРё
+	MODE_TESTKLP=10,	// Р РµР¶РёРј С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ РєР»Р°РїР°РЅРѕРІ
 } main_mode;
 
-// Аварийные состояния
+// РђРІР°СЂРёР№РЅС‹Рµ СЃРѕСЃС‚РѕСЏРЅРёСЏ
 typedef enum {
-	NO_ALARM    =0x0,		// Нет аварии
-	ALARM_TEMP  =0x2,		// Авария по превышению температуры
-	ALARM_WATER =0x4,		// Авария: отсутствие воды охлаждения
-	ALARM_FREQ  =0x8, 		// Авария: отсутствие напряжения сети
-	ALARM_NOLOAD=0x10,		// Авария: отсутствие подключения нагрузки
-	ALARM_EXT   =0x20, 		// Авария от внешнего источника
+	NO_ALARM    =0x0,		// РќРµС‚ Р°РІР°СЂРёРё
+	ALARM_TEMP  =0x2,		// РђРІР°СЂРёСЏ РїРѕ РїСЂРµРІС‹С€РµРЅРёСЋ С‚РµРјРїРµСЂР°С‚СѓСЂС‹
+	ALARM_WATER =0x4,		// РђРІР°СЂРёСЏ: РѕС‚СЃСѓС‚СЃС‚РІРёРµ РІРѕРґС‹ РѕС…Р»Р°Р¶РґРµРЅРёСЏ
+	ALARM_FREQ  =0x8, 		// РђРІР°СЂРёСЏ: РѕС‚СЃСѓС‚СЃС‚РІРёРµ РЅР°РїСЂСЏР¶РµРЅРёСЏ СЃРµС‚Рё
+	ALARM_NOLOAD=0x10,		// РђРІР°СЂРёСЏ: РѕС‚СЃСѓС‚СЃС‚РІРёРµ РїРѕРґРєР»СЋС‡РµРЅРёСЏ РЅР°РіСЂСѓР·РєРё
+	ALARM_EXT   =0x20, 		// РђРІР°СЂРёСЏ РѕС‚ РІРЅРµС€РЅРµРіРѕ РёСЃС‚РѕС‡РЅРёРєР°
 } alarm_mode;
 
-#define START_WAIT	0	// Ожидание запуска процесса
-#define PROC_START	1	// Начало процесса
-#define PROC_RAZGON	2	// Разгон до рабочей температуры
-#define PROC_STAB	3	// Стабилизация температуры
-#define PROC_GLV	4	// Отбор головных фракций
-#define PROC_T_WAIT	5       // Ожидание стабилизации температуры
-#define PROC_SR		6	// Отбор СР
-#define PROC_DISTILL	PROC_SR	// Дистилляция
-#define PROC_HV		7	// Отбор хвостовых фракций
-#define PROC_WAITEND	8	// Отключение нагрева, подача воды для охлаждения
-#define PROC_END	100	// Окончание работы
+#define START_WAIT	0	// РћР¶РёРґР°РЅРёРµ Р·Р°РїСѓСЃРєР° РїСЂРѕС†РµСЃСЃР°
+#define PROC_START	1	// РќР°С‡Р°Р»Рѕ РїСЂРѕС†РµСЃСЃР°
+#define PROC_RAZGON	2	// Р Р°Р·РіРѕРЅ РґРѕ СЂР°Р±РѕС‡РµР№ С‚РµРјРїРµСЂР°С‚СѓСЂС‹
+#define PROC_STAB	3	// РЎС‚Р°Р±РёР»РёР·Р°С†РёСЏ С‚РµРјРїРµСЂР°С‚СѓСЂС‹
+#define PROC_GLV	4	// РћС‚Р±РѕСЂ РіРѕР»РѕРІРЅС‹С… С„СЂР°РєС†РёР№
+#define PROC_T_WAIT	5       // РћР¶РёРґР°РЅРёРµ СЃС‚Р°Р±РёР»РёР·Р°С†РёРё С‚РµРјРїРµСЂР°С‚СѓСЂС‹
+#define PROC_SR		6	// РћС‚Р±РѕСЂ РЎР 
+#define PROC_DISTILL	PROC_SR	// Р”РёСЃС‚РёР»Р»СЏС†РёСЏ
+#define PROC_HV		7	// РћС‚Р±РѕСЂ С…РІРѕСЃС‚РѕРІС‹С… С„СЂР°РєС†РёР№
+#define PROC_WAITEND	8	// РћС‚РєР»СЋС‡РµРЅРёРµ РЅР°РіСЂРµРІР°, РїРѕРґР°С‡Р° РІРѕРґС‹ РґР»СЏ РѕС…Р»Р°Р¶РґРµРЅРёСЏ
+#define PROC_END	100	// РћРєРѕРЅС‡Р°РЅРёРµ СЂР°Р±РѕС‚С‹
 
 
-extern char *Hostname;		// Имя хоста
-extern char *httpUser;		// Имя пользователя для http
-extern char *httpPassword;	// Пароль для http
-extern int httpSecure;		// Спрашивать пароль
-extern int wsPeriod;		// Период обновления данных через websocket
+extern char *Hostname;		// РРјСЏ С…РѕСЃС‚Р°
+extern char *httpUser;		// РРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РґР»СЏ http
+extern char *httpPassword;	// РџР°СЂРѕР»СЊ РґР»СЏ http
+extern int httpSecure;		// РЎРїСЂР°С€РёРІР°С‚СЊ РїР°СЂРѕР»СЊ
+extern int wsPeriod;		// РџРµСЂРёРѕРґ РѕР±РЅРѕРІР»РµРЅРёСЏ РґР°РЅРЅС‹С… С‡РµСЂРµР· websocket
 
-extern main_mode MainMode;	// Текущий режим работы
-extern alarm_mode AlarmMode;	// Состояние аварии
-extern int16_t MainStatus;	// Текущее состояние (в зависимости от режима)
-extern int16_t CurPower;	// Текущая измерянная мощность
-extern int16_t SetPower;	// Установленная мощность
-extern int16_t CurVolts;	// Текущее измеренное напряжение
-extern volatile int16_t CurFreq;// Измерянное число периодов в секунду питающего напряжения
-extern int16_t WaterOn;		// Флаг включения контура охлаждения
-extern float TempWaterIn;	// Температура воды на входе в контур
-extern float TempWaterOut;	// Температура воды на выходе из контура
-extern int16_t WaterFlow;	// Значения датчика потока воды.
+extern main_mode MainMode;	// РўРµРєСѓС‰РёР№ СЂРµР¶РёРј СЂР°Р±РѕС‚С‹
+extern alarm_mode AlarmMode;	// РЎРѕСЃС‚РѕСЏРЅРёРµ Р°РІР°СЂРёРё
+extern int16_t MainStatus;	// РўРµРєСѓС‰РµРµ СЃРѕСЃС‚РѕСЏРЅРёРµ (РІ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ СЂРµР¶РёРјР°)
+extern int16_t CurPower;	// РўРµРєСѓС‰Р°СЏ РёР·РјРµСЂСЏРЅРЅР°СЏ РјРѕС‰РЅРѕСЃС‚СЊ
+extern int16_t SetPower;	// РЈСЃС‚Р°РЅРѕРІР»РµРЅРЅР°СЏ РјРѕС‰РЅРѕСЃС‚СЊ
+extern int16_t CurVolts;	// РўРµРєСѓС‰РµРµ РёР·РјРµСЂРµРЅРЅРѕРµ РЅР°РїСЂСЏР¶РµРЅРёРµ
+extern volatile int16_t CurFreq;// РР·РјРµСЂСЏРЅРЅРѕРµ С‡РёСЃР»Рѕ РїРµСЂРёРѕРґРѕРІ РІ СЃРµРєСѓРЅРґСѓ РїРёС‚Р°СЋС‰РµРіРѕ РЅР°РїСЂСЏР¶РµРЅРёСЏ
+extern int16_t WaterOn;		// Р¤Р»Р°Рі РІРєР»СЋС‡РµРЅРёСЏ РєРѕРЅС‚СѓСЂР° РѕС…Р»Р°Р¶РґРµРЅРёСЏ
+extern float TempWaterIn;	// РўРµРјРїРµСЂР°С‚СѓСЂР° РІРѕРґС‹ РЅР° РІС…РѕРґРµ РІ РєРѕРЅС‚СѓСЂ
+extern float TempWaterOut;	// РўРµРјРїРµСЂР°С‚СѓСЂР° РІРѕРґС‹ РЅР° РІС‹С…РѕРґРµ РёР· РєРѕРЅС‚СѓСЂР°
+extern int16_t WaterFlow;	// Р—РЅР°С‡РµРЅРёСЏ РґР°С‚С‡РёРєР° РїРѕС‚РѕРєР° РІРѕРґС‹.
 
 
 
@@ -96,24 +96,27 @@ extern int16_t WaterFlow;	// Значения датчика потока воды.
 
 #define HMAX (1<<LEDC_TIMER_10_BIT)-1
 
+#define VALVE_DUTY 1023
+#define VALVE_ON_FADE_TIME_MS 1000
 
-// Определение для работы с клапанами
+
+// РћРїСЂРµРґРµР»РµРЅРёРµ РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ РєР»Р°РїР°РЅР°РјРё
 typedef struct  {
-	bool is_pwm;			// Флаг, означающий, что клапан  в режиме шим.
-	float open_time;		// Время для открытия таймера в секундах (в режиме шим)
-	float close_time;		// Время для закрытого состояния клапана в секундах (в режиме шим)
-	float timer_sec;		// Отсчет секунд для текущего состояния таймера. (в режиме шим)
-	bool is_open;			// Флаг, что клапан в открытом состоянии
-	int channel;			// Канал ledc
+	bool is_pwm;			// Р¤Р»Р°Рі, РѕР·РЅР°С‡Р°СЋС‰РёР№, С‡С‚Рѕ РєР»Р°РїР°РЅ  РІ СЂРµР¶РёРјРµ С€РёРј.
+	float open_time;		// Р’СЂРµРјСЏ РґР»СЏ РѕС‚РєСЂС‹С‚РёСЏ С‚Р°Р№РјРµСЂР° РІ СЃРµРєСѓРЅРґР°С… (РІ СЂРµР¶РёРјРµ С€РёРј)
+	float close_time;		// Р’СЂРµРјСЏ РґР»СЏ Р·Р°РєСЂС‹С‚РѕРіРѕ СЃРѕСЃС‚РѕСЏРЅРёСЏ РєР»Р°РїР°РЅР° РІ СЃРµРєСѓРЅРґР°С… (РІ СЂРµР¶РёРјРµ С€РёРј)
+	float timer_sec;		// РћС‚СЃС‡РµС‚ СЃРµРєСѓРЅРґ РґР»СЏ С‚РµРєСѓС‰РµРіРѕ СЃРѕСЃС‚РѕСЏРЅРёСЏ С‚Р°Р№РјРµСЂР°. (РІ СЂРµР¶РёРјРµ С€РёРј)
+	bool is_open;			// Р¤Р»Р°Рі, С‡С‚Рѕ РєР»Р°РїР°РЅ РІ РѕС‚РєСЂС‹С‚РѕРј СЃРѕСЃС‚РѕСЏРЅРёРё
+	int channel;			// РљР°РЅР°Р» ledc
 } klp_list;
 
-extern klp_list Klp[MAX_KLP];		// Список клапанов.
-#define klp_water 0			// Клапан подачи воды.
-#define klp_glwhq 1			// Клапан отбора голов и хвостов.
-#define klp_sr    2			// Клапан отбора товарного спирта
+extern klp_list Klp[MAX_KLP];		// РЎРїРёСЃРѕРє РєР»Р°РїР°РЅРѕРІ.
+#define klp_water 0			// РљР»Р°РїР°РЅ РїРѕРґР°С‡Рё РІРѕРґС‹.
+#define klp_glwhq 1			// РљР»Р°РїР°РЅ РѕС‚Р±РѕСЂР° РіРѕР»РѕРІ Рё С…РІРѕСЃС‚РѕРІ.
+#define klp_sr    2			// РљР»Р°РїР°РЅ РѕС‚Р±РѕСЂР° С‚РѕРІР°СЂРЅРѕРіРѕ СЃРїРёСЂС‚Р°
 
 
-void myBeep(bool lng);		// Включаем бипер
+void myBeep(bool lng);		// Р’РєР»СЋС‡Р°РµРј Р±РёРїРµСЂ
 
 
 void PZEM_init(void);
@@ -126,26 +129,28 @@ float PZEM_energy(void);
 const char *getMainModeStr(void);
 const char *getAlarmModeStr(void);
 const char *getMainStatusStr(void);
-const char *getResetReasonStr(void); // Получение строки о причине перезагрузки
+const char *getResetReasonStr(void); // РџРѕР»СѓС‡РµРЅРёРµ СЃС‚СЂРѕРєРё Рѕ РїСЂРёС‡РёРЅРµ РїРµСЂРµР·Р°РіСЂСѓР·РєРё
 
 cJSON* getInformation(void);
 
-void sendSMS(char *text);	// Отправка SMS
-void Rectification(void);	// Обработка состояний в режиме ректификации
-void setPower(int16_t pw);	// Установка рабочей мощности
-void setMainMode(int new_mode);	// Установка нового режима работы
-void setStatus(int next);	// Ручная установка состояния конечного автомата
+void sendSMS(char *text);	// РћС‚РїСЂР°РІРєР° SMS
+void Rectification(void);	// РћР±СЂР°Р±РѕС‚РєР° СЃРѕСЃС‚РѕСЏРЅРёР№ РІ СЂРµР¶РёРјРµ СЂРµРєС‚РёС„РёРєР°С†РёРё
+void setPower(int16_t pw);	// РЈСЃС‚Р°РЅРѕРІРєР° СЂР°Р±РѕС‡РµР№ РјРѕС‰РЅРѕСЃС‚Рё
+void setMainMode(int new_mode);	// РЈСЃС‚Р°РЅРѕРІРєР° РЅРѕРІРѕРіРѕ СЂРµР¶РёРјР° СЂР°Р±РѕС‚С‹
+void setStatus(int next);	// Р СѓС‡РЅР°СЏ СѓСЃС‚Р°РЅРѕРІРєР° СЃРѕСЃС‚РѕСЏРЅРёСЏ РєРѕРЅРµС‡РЅРѕРіРѕ Р°РІС‚РѕРјР°С‚Р°
 void setNewMainStatus(int16_t newStatus);
-void closeAllKlp(void);		// Закрытие всех клапанов.
-void openKlp(int i);		// Открытие клапана воды
-void closeKlp(int i);		// Закрытие определенного клапана
-void startKlpPwm(int i, float topen, float tclose); // Запуск шима клапана
-void startGlvKlp(float topen, float tclose); // Запуск шима отбора голов
-void startSrKlp(float topen, float tclose);	// Запуск шима отбора товарного продукта
+void closeAllKlp(void);		// Р—Р°РєСЂС‹С‚РёРµ РІСЃРµС… РєР»Р°РїР°РЅРѕРІ.
+void openKlp(int i);		// РћС‚РєСЂС‹С‚РёРµ РєР»Р°РїР°РЅР° РІРѕРґС‹
+void closeKlp(int i);		// Р—Р°РєСЂС‹С‚РёРµ РѕРїСЂРµРґРµР»РµРЅРЅРѕРіРѕ РєР»Р°РїР°РЅР°
+void startKlpPwm(int i, float topen, float tclose); // Р—Р°РїСѓСЃРє С€РёРјР° РєР»Р°РїР°РЅР°
+
+void valve_off(int valve_num);
+void valve_on(int valve_num);
+void start_valve_PWMpercent(int valve_num, int period_sec, int percent_open);
 
 
-int hd_httpd_init(void);	// Запуск http сервера
-int hd_display_init(void);	// Запуск обработчика дисплея
+int hd_httpd_init(void);	// Р—Р°РїСѓСЃРє http СЃРµСЂРІРµСЂР°
+int hd_display_init(void);	// Р—Р°РїСѓСЃРє РѕР±СЂР°Р±РѕС‚С‡РёРєР° РґРёСЃРїР»РµСЏ
 
 #ifdef __cplusplus
 }
