@@ -1093,7 +1093,7 @@ int16_t ds_getTemp(DS18 *ds)
 float ds_getTempC(DS18 *ds)
 {
 	if (!ds) return -1;
-	ds->Ce = rawToCelsius(ds_getTemp(ds));
+	ds->Ce = rawToCelsius(ds_getTemp(ds)) + ds->corr;
 	return ds->Ce;
 }
 
@@ -1172,7 +1172,7 @@ void ds_task(void *arg)
 				DS18 *d = &ds[i];
 				if (!d->is_connected) continue;
 				ds_getTempC(d);
-				if (DS_ALARM == d->type && d->Ce+d->corr > d->talert) {
+				if (DS_ALARM == d->type && d->Ce > d->talert) {
 					// Alarm mode
 					AlarmMode = ALARM_TEMP;
 					if (SavedAlarmMode != AlarmMode) {
@@ -1197,7 +1197,7 @@ double getCubeTemp(void) {
 	for (int i=0; i<MAX_DS; i++) {
 		DS18 *d = &ds[i];
 		if (!d->is_connected) continue;
-		if (DS_CUB == d->type) return d->Ce+d->corr;
+		if (DS_CUB == d->type) return d->Ce;
 	}
 	return -1;
 }
@@ -1208,7 +1208,7 @@ double getTube20Temp(void)
 	for (int i=0; i<MAX_DS; i++) {
 		DS18 *d = &ds[i];
 		if (!d->is_connected) continue;
-		if (DS_TUBE20 == d->type) return d->Ce+d->corr;
+		if (DS_TUBE20 == d->type) return d->Ce;
 	}
 	// Если датчик не найден - возвращаем кубовую температуру
 	return getCubeTemp();
