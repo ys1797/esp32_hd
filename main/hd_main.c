@@ -29,6 +29,7 @@ License (MIT license):
 #include "freertos/timers.h"
 #include "esp32/rom/rtc.h"
 #include "esp_system.h"
+#include "esp_idf_version.h"
 #include "esp_event.h"
 #include "esp_spiffs.h"
 #include "esp_vfs_fat.h"
@@ -112,7 +113,7 @@ int16_t WaterFlow=-1;			// Значения датчика потока воды
 
 // Динамические параметры
 double tempTube20Prev;		// Запомненое значение температуры в колонне
-uint32_t secTempPrev;		// Отметка времени измеренной температуры 
+uint32_t secTempPrev;		// Отметка времени измеренной температуры
 double  tempStabSR;		// Температура, относительно которой стабилизируется отбор СР
 int16_t ProcChimSR = 0;		// Текущий процент отбора СР
 double  startPressure = -1;	// Атмосферное давление в начале процесса
@@ -143,7 +144,7 @@ autopwm autoPWM[COUNT_PWM] = {
 int16_t rect_timer1=0;		// Таймер для отсчета секунд 1
 int16_t timer_sec2=0;		// Таймер для отсчета секунд 2
 int16_t timer_sec3=0;		// Таймер для отсчета секунд 3
-int32_t SecondsEnd;		// Время окончания процесса 
+int32_t SecondsEnd;		// Время окончания процесса
 RESET_REASON resetReason;	// Причина перезагрузки
 nvs_handle nvsHandle;
 
@@ -377,12 +378,7 @@ static void timer_example_evt_task(void *arg)
 					if (Klp[i].close_time <= 0) continue;
 					ESP_LOGI(TAG, "PWM klp %d -> close", i);
 					// Закрываем клапан
-					int ch = Klp[i].channel;
-					ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 0);
-					ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
-				        LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 0;
-					Klp[i].is_open = false;
-					Klp[i].timer_sec = 0;
+					valve_off(i);
 				}
 			} else {
 				// Текущее состояние - клапан закрыт
@@ -391,17 +387,7 @@ static void timer_example_evt_task(void *arg)
 					if (Klp[i].open_time <= 0) continue;
 					ESP_LOGI(TAG, "PWM klp %d -> open", i);
 					// Открываем клапан
-					ledc_channel_t ch = Klp[i].channel;
-				        LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 1;
-					if (getIntParam(DEFL_PARAMS, "klpSilentNode")) {
-						ledc_set_fade_with_time(LEDC_HIGH_SPEED_MODE, ch, 1023, 1000);
-						ledc_fade_start(LEDC_HIGH_SPEED_MODE, ch, LEDC_FADE_NO_WAIT);
-					} else {
-						ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 1023);
-						ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
-					}
-					Klp[i].is_open = true;
-                			Klp[i].timer_sec = 0;
+					valve_on(i);					
 				}
 			}
 		}
@@ -823,8 +809,6 @@ void setMainMode(int nm)
 // Ручная установка состояния конечного автомата
 void setStatus(int next)
 {
-	float topen;
-
 	if (next && MainStatus>=PROC_END) return;
 	if (!next && MainStatus<= START_WAIT) return;
 
@@ -887,12 +871,12 @@ void setStatus(int next)
 			} else if (MainStatus == PROC_STAB) {
 				setPower(getIntParam(DEFL_PARAMS, "powerRect"));   // Устанавливаем мощность ректификации
 				secTempPrev = uptime_counter;
+				closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта
 				// Устанавливаем медленный ШИМ клапан отбора хвостов и голов в соответвии с установками
-				float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
-				float procChimOtbGlv = getFloatParam(DEFL_PARAMS, "procChimOtbGlv");
-				topen = (float)(timeChimRectOtbGlv)/100*(float)(procChimOtbGlv);
+				start_valve_PWMpercent(klp_glwhq,
+					getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
+					getFloatParam(DEFL_PARAMS, "procChimOtbGlv"));
 
-				startGlvKlp(topen, timeChimRectOtbGlv-topen);
 				setTempStabSR(getTube20Temp() ); // температура, относительно которой будем стабилизировать отбор
 				setNewMainStatus(PROC_GLV); // Ручной переход в режим отбора голов
 			} else if (MainStatus == PROC_GLV) {
@@ -903,10 +887,12 @@ void setStatus(int next)
 			} else if (MainStatus == PROC_T_WAIT) {
 				setNewMainStatus(PROC_SR);
 			} else if (MainStatus == PROC_SR) {
-				float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
-				closeKlp(klp_sr); 			// Отключение клапана продукта
-				topen = (float)(timeChimRectOtbGlv)*90/100;
-				startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
+				closeKlp(klp_sr); // Отключение клапана продукта
+				// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов 
+				start_valve_PWMpercent(klp_glwhq,
+						getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
+						90);
+
 				setNewMainStatus(PROC_HV);
 			} else if (MainStatus == PROC_HV) {
 				setPower(0);		// Снятие мощности с тэна
@@ -938,9 +924,12 @@ void setStatus(int next)
 			} else if (MainStatus == PROC_WAITEND) {
 				// Переходим к отбору хвостов
 				setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
-				float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
-				topen = (float)(timeChimRectOtbGlv)*90/100;
-				startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
+				closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта 
+				// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов
+				start_valve_PWMpercent(klp_glwhq,
+						getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
+						90);
+
 				setNewMainStatus(PROC_HV);
 			} else if (MainStatus == PROC_END) {
 				openKlp(klp_water);	// Открытие клапана воды
@@ -980,7 +969,7 @@ int16_t GetSrPWM(void)
 void Rectification(void)
 {
 	double t;
-	float topen,  tempEndRectRazgon;
+	float tempEndRectRazgon;
 	char b[80];
 
 	switch (MainStatus) {
@@ -1076,16 +1065,16 @@ void Rectification(void)
 			}
 		}
 
-		// Переходим к следующему этапу - отбору голов. 
+		// Переходим к следующему этапу - отбору голов.
 		setNewMainStatus(PROC_GLV);
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		secTempPrev = uptime_counter;
 		setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
+		closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта 
 		// Устанавливаем медленный ШИМ клапан отбора хвостов и голов в соответвии с установками
-		float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
-		float procChimOtbGlv = getFloatParam(DEFL_PARAMS, "procChimOtbGlv");
-		topen = (float)(timeChimRectOtbGlv)/100*(float)(procChimOtbGlv);
-		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
+		start_valve_PWMpercent(klp_glwhq,
+			getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
+			getFloatParam(DEFL_PARAMS, "procChimOtbGlv"));
 
 		setTempStabSR(getTube20Temp());	// температура, относительно которой будем стабилизировать отбор
 #ifdef DEBUG
@@ -1131,9 +1120,11 @@ void Rectification(void)
 		t = getCubeTemp();
 		if (t >= getFloatParam(DEFL_PARAMS, "tempEndRectOtbSR")) {
 			// Переходим к отбору хвостов
-			float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
-			topen = (float)(timeChimRectOtbGlv)*90/100;
-			startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
+			closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта
+			// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов 
+			start_valve_PWMpercent(klp_glwhq,
+					getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
+					90);
        			setNewMainStatus(PROC_HV);
 			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 			break;
@@ -1143,14 +1134,17 @@ void Rectification(void)
 			break;
 		}
 
-		// Переход к отбору товарного продукта 
+		// Переход к отбору товарного продукта
 
 		// Реализуется отбор по-шпоре, что в функции прописано то и будет возвращено.
 		setNewProcChimSR(GetSrPWM());
+		closeKlp(klp_glwhq); // Отключение клапана отбора голов/хвостов 
 		// Устанавливаем медленный ШИМ клапана продукта
-		float timeChimRectOtbSR = getFloatParam(DEFL_PARAMS, "timeChimRectOtbSR");
-		topen = (float)(timeChimRectOtbSR)*(float)(ProcChimSR)/100;
-		startSrKlp(topen, (float)(timeChimRectOtbSR)-topen);
+		start_valve_PWMpercent
+		  ( klp_sr, // клапан продукта
+			getFloatParam(DEFL_PARAMS, "timeChimRectOtbSR"),// период ШИМ в сек
+			ProcChimSR //%
+		  );
 
 		secTempPrev = uptime_counter;	// Запомним время, когда стабилизировалась температура
 		setNewMainStatus(PROC_SR);	// Переход к отбору продукта
@@ -1211,10 +1205,13 @@ void Rectification(void)
 						setNewProcChimSR(ProcChimSR + (ProcChimSR*(-incrementCHIM))/100);
 					}
 					if (ProcChimSR>95) setNewProcChimSR(95);
+					// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов
+					start_valve_PWMpercent
+					  ( klp_sr, // клапан продукта
+						getFloatParam(DEFL_PARAMS, "timeChimRectOtbSR"),// период ШИМ в сек
+						ProcChimSR //%
+					  );
 
-					float timeChimRectOtbSR = getFloatParam(DEFL_PARAMS, "timeChimRectOtbSR");
-					topen = (float)(timeChimRectOtbSR)*(float)(ProcChimSR)/100;
-					startSrKlp(topen, (float)(timeChimRectOtbSR)-topen);
 				}
 				secTempPrev = uptime_counter;
 			}
@@ -1225,9 +1222,9 @@ void Rectification(void)
 		}
 		// Температура в кубе превысила температуру при которой надо отбирать СР
 		closeKlp(klp_sr); 			// Отключение клапана продукта
-		float timeChimRectOtbGlv = getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv");
-		topen = (float)(timeChimRectOtbGlv)*90/100;
-		startGlvKlp(topen, (float)(timeChimRectOtbGlv)-topen);
+			start_valve_PWMpercent(klp_glwhq,
+					getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
+					90);
 		setNewMainStatus(PROC_HV);			// Переход к отбору хвостов
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		 /* fall through */
@@ -1238,7 +1235,7 @@ void Rectification(void)
 		if (t < getFloatParam(DEFL_PARAMS, "tempEndRect")) {
 			break;
 		}
-		// Температура достигла отметки окончания ректификации	
+		// Температура достигла отметки окончания ректификации
 		// Переход к окончанию процесса
 		setPower(0);		// Снятие мощности с тэна
 		closeKlp(klp_glwhq); 	// Отключение клапана отбора голов/хвостов
@@ -1337,18 +1334,83 @@ void Distillation(void)
 }
 
 /*
+ * выключение клапана без сброса �Ш�М
+ * @param valve_num - номер клапана
+ */
+void valve_off(int valve_num){
+	if (valve_num>=MAX_KLP) {
+		ESP_LOGE("valve_OFF", "incorrect valve num %d", valve_num);
+		return;
+	}
+	ledc_channel_t ch = Klp[valve_num].channel;
+	ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 0);
+	ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
+	LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 0;
+	Klp[valve_num].is_open = false;
+	Klp[valve_num].timer_sec = 0;
+	//ESP_LOGI(TAG, "valve %d OFF", valve_num);
+}
+
+
+
+/*
  * Закрытие всех клапанов.
  */
 void closeAllKlp(void)
 {
-	for (int i=0; i<MAX_KLP; i++) {
-		int ch = Klp[i].channel;
-		ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 0);
+	for (int i=0; i<MAX_KLP; i++)	closeKlp(i);
+}
+
+/*
+ * задача включения клапана, номер клапана в аргументе *arg как *int
+ * Самоудаляется после отработки
+ * Включает клапан
+ * -для снижения тока и нагрева клапана:
+ * после включения и выдерживания паузы на механическое включение
+ * ток клапана снижается переводом на %PWM
+ *
+ * @*arg - *int номера клапана (!!! д.быть static !!!)
+ */
+static void valve_open_task(void *arg){
+	int valve_num=*(int*)arg;
+	if (valve_num >=MAX_KLP)
+		vTaskDelete(NULL);
+
+	ledc_channel_t ch = Klp[valve_num].channel;
+	LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 1;
+	if (getIntParam(DEFL_PARAMS,"klpSilentNode")) {
+		ledc_set_fade_with_time(LEDC_HIGH_SPEED_MODE, ch, VALVE_DUTY, VALVE_ON_FADE_TIME_MS);
+		ledc_fade_start(LEDC_HIGH_SPEED_MODE, ch, LEDC_FADE_NO_WAIT);
+		vTaskDelay(VALVE_ON_FADE_TIME_MS/portTICK_PERIOD_MS);
+	} else {
+		ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, VALVE_DUTY);
 		ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
-	        LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 0;
-		Klp[i].is_open = false;
-		Klp[i].is_pwm = false;
 	}
+#define KEEP_KLP_PWM 30  // процент ШИМ удержания 
+#define KEEP_KLP_DELAY_MS 150  // задержка перевода в ШИМ удержания после включения, мс 
+	//ESP_LOGI("keep_valve", "valve %d prc:%d delay:%d", valve_num,getIntDEFparam("vlvKeepPWM"),getIntDEFparam("vlvDelayLowPWM"));
+	// ждем пока механика клапана включится 
+	vTaskDelay(KEEP_KLP_DELAY_MS/portTICK_PERIOD_MS);
+	// снижаем ток
+	ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, ((VALVE_DUTY*KEEP_KLP_PWM))/100ul);
+	ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
+	vTaskDelete(NULL);
+}
+
+
+/*
+ * Открытие клапана
+ * @param valve_num - номер клапана
+ */
+void valve_on(int valve_num){
+	if (valve_num>=MAX_KLP) return;
+static int num;
+	num=valve_num;
+	//---запускаем задачу открытия клапана 
+	xTaskCreate(valve_open_task, "valve_open", 4096, (void *)&num, 5, NULL);
+	Klp[valve_num].is_open = true;
+	Klp[valve_num].timer_sec = 0;
+	//ESP_LOGI(TAG, "valve %d ON", valve_num);
 }
 
 
@@ -1357,37 +1419,16 @@ void closeAllKlp(void)
  */
 void openKlp(int i)
 {
-
-	if (i>=MAX_KLP) return;
-	int ch = Klp[i].channel;
-
-	ESP_LOGI(TAG, "Open klp %d", i);
-        LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 1;
-	if (getIntParam(DEFL_PARAMS, "klpSilentNode")) {
-		ledc_set_fade_with_time(LEDC_HIGH_SPEED_MODE, ch, 1023, 1000);
-		ledc_fade_start(LEDC_HIGH_SPEED_MODE, ch, LEDC_FADE_NO_WAIT);
-	} else {
-
-		ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 1023);
-		ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
-	}
+	valve_on(i);
 	Klp[i].is_pwm = false;
-	Klp[i].is_open = true;
 }
 
 /*
- * Закрытие определенного клапана
+ * Закрытие клапана с выключением ШИМ 
  */
 void closeKlp(int i)
 {
-	if (i>=MAX_KLP) return;
-	ESP_LOGI(TAG, "Close klp %d", i);
-	int ch = Klp[i].channel;
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 0);
-	ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
-        LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 0;
-	Klp[i].timer_sec = 0;
-	Klp[i].is_open = false;
+	valve_off(i);
 	Klp[i].is_pwm = false;
 }
 
@@ -1405,19 +1446,19 @@ void startKlpPwm(int i, float topen, float tclose)
 	Klp[i].is_pwm = true;	// Запускаем медленный Шим режим
 }
 
-
-// Запуск шима отбора голов
-void startGlvKlp(float topen, float tclose)
-{
-	closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта
-	startKlpPwm(klp_glwhq, topen, tclose);
-}
-
-// Запуск шима отбора товарного продукта
-void startSrKlp(float topen, float tclose)
-{
-	closeKlp(klp_glwhq); // Отключение клапана отбора голов/хвостов
-	startKlpPwm(klp_sr, topen, tclose);
+/* Запуск программного ШИМ с параметрами
+* @клапан
+* @период в сек
+* @процент времени открытия
+*/
+void start_valve_PWMpercent(int valve_num, int period_sec, int percent_open){
+	int topened= (period_sec*percent_open+50)/100l;
+	int tclosed= period_sec-topened;
+	if ((topened < 0)||(topened<0)||(period_sec==0)){
+		ESP_LOGE("startPWN", "incorrect param,period %d open %d close %d", period_sec, topened, tclosed);
+		return;
+	}
+	startKlpPwm(valve_num, topened, tclosed);
 }
 
 static struct {
@@ -1670,7 +1711,11 @@ void app_main(void)
 	xTaskCreate(&pzem_task, "pzem_task", 2048, NULL, 1, NULL);
 
 	ledc_timer_config_t ledc_timer = {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 0, 0)
+		.duty_resolution = LEDC_TIMER_10_BIT,
+#else
 		.bit_num = LEDC_TIMER_10_BIT,
+#endif
 		.freq_hz = LED_HZ*2,
 		.speed_mode = LEDC_HIGH_SPEED_MODE,
 		.timer_num = LEDC_TIMER_0
