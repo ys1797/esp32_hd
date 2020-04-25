@@ -33,3 +33,5 @@ sdkconfig.old
 *.exe
 *.out
 *.app
+/.cproject
+/.project
