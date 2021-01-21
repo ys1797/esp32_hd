@@ -59,6 +59,18 @@ License (MIT license):
 #define DS2482_STATUS_SBR	(1<<5)
 #define DS2482_STATUS_TSB	(1<<6)
 #define DS2482_STATUS_DIR	(1<<7)
+// -----commands
+#define DS2482_CMD_RESET 	0xF0
+#define DS2482_CMD_SET_PTR 	0xE1
+#define DS2482_CMD_WRITE_CFG 	0xD2
+#define DS2482_CMD_1W_RESET 	0xB4
+#define DS2482_CMD_1W_WBIT	0x87
+#define DS2482_CMD_1W_WBYTE	0xA5
+#define DS2482_CMD_1W_RBYTE	0x96
+// for Search-ROM. generates 2 Read-slot+1write slot
+#define DS2482_CMD_1W_TRIPLET	0x78
+//#define DS2482_CMD_ 0x
+//#define DS2482_CMD_0x
 
 enum {
 	DS18S20 = (uint8_t) 0x10,
@@ -94,6 +106,7 @@ static unsigned char ROM_NO[8];
 static uint8_t LastDiscrepancy;
 static uint8_t LastFamilyDiscrepancy;
 static uint8_t LastDeviceFlag;
+static xSemaphoreHandle ow_mux;
 
 
 void ow_init(int GPIO)
@@ -473,10 +486,20 @@ void ds2482_init(void)
 		return;
 	}
 
-	buf[0] = 0xf0;
+	buf[0] = DS2482_CMD_RESET;// 0xf0;
 	if (I2CWrite(ds2482_Address, buf, 1) == ESP_FAIL) {
 		ESP_LOGW(TAG, "DS2482 reset failed!");
 	}
+	else
+  /*
+   * The  Active Pullup (APU) bit  controls  whether  an  active  pullup  (con-trolled  slew-rate  transistor)  or
+   * a  passive  pullup  (RWPUresistor) is used to drive a 1-Wire line from low to high.
+   * When  APU  =  0,  active  pullup  is  disabled  (resistormode).
+   * (!!!)Active pullup should always be selected unlessthere  is  only  a  single  slave  on  the  1-Wire  line
+   */
+		if (!ds2482_configure(DS2482_CONFIG_APU)) // APU
+			ESP_LOGW(TAG, "DS2482 set cfg failed!");
+
 	ESP_LOGI(TAG, "DS2482 init complete, address: 0x%x", ds2482_Address);	
 }
 
@@ -484,7 +507,7 @@ static void ds2482_setReadPtr(uint8_t readPtr)
 {
 	esp_err_t ret;
 	uint8_t buf[4];
-	buf[0] = 0xe1;
+	buf[0] = DS2482_CMD_SET_PTR; //0xe1;
 	buf[1] = readPtr;
 	ret = I2CWrite(ds2482_Address, buf, 2);
 	if (ret == ESP_FAIL) {
@@ -519,7 +542,8 @@ static uint8_t ds2482_busyWait(bool setReadPtr)
 			ds2482_Timeout = 1;
 			break;
 		}
-		ets_delay_us(2);
+		//ets_delay_us(2);
+		vTaskDelay(10/portTICK_PERIOD_MS);
 	}
 	return status;
 }
@@ -530,7 +554,7 @@ bool ds2482_wireReset()
 	uint8_t buf[4];
 	ds2482_busyWait(true);
 
-	buf[0] = 0xb4;
+	buf[0] = DS2482_CMD_1W_RESET; //0xb4;
 	ret = I2CWrite(ds2482_Address, buf, 1);
 	if (ret == ESP_FAIL) {
 		ESP_LOGW(TAG, "DS2482 I2C wire reset fail");
@@ -545,8 +569,14 @@ bool ds2482_configure(uint8_t config)
 	uint8_t buf[4];
 
 	ds2482_busyWait(true);
-	buf[0] = 0xd2;
-	buf[0] = config | (~config)<<4;
+	buf[0] = DS2482_CMD_WRITE_CFG;
+	/*
+	 * (!!!)When  writing  to  the  Configuration  Register,
+	 *  the new data is accepted ONLY if the upper nibble (bits 7to 4) is the oneвЂ™s complement of the lower nibble (bits 3to 0).
+	 *  When read, the upper nibble is always 0h.
+	 */
+	buf[1] = config | (~config)<<4;
+
 	ret = I2CWrite(ds2482_Address, buf, 2);
 	if (ret == ESP_FAIL) {
 		printf("DS2482 I2C configure fail\n");
@@ -613,7 +643,7 @@ void ds2482_wireWriteByte(uint8_t b)
 	esp_err_t ret;
 	uint8_t buf[4];
 	ds2482_busyWait(true);
-	buf[0] = 0xa5;
+	buf[0] = DS2482_CMD_1W_WBYTE;// 0xa5;
 	buf[1] = b;
 	ret = I2CWrite(ds2482_Address, buf, 2);
 	if (ret == ESP_FAIL) {
@@ -626,7 +656,7 @@ uint8_t ds2482_wireReadByte()
 	esp_err_t ret;
 	uint8_t buf[4];
 	ds2482_busyWait(true);
-	buf[0] = 0x96;
+	buf[0] = DS2482_CMD_1W_RBYTE; //0x96;
 	ret = I2CWrite(ds2482_Address, buf, 1);
 	if (ret == ESP_FAIL) {
 		printf("DS2482 I2C ow write byte fail\n");
@@ -643,7 +673,7 @@ void ds2482_wireWriteBit(uint8_t bit)
 	uint8_t buf[4];
 
 	ds2482_busyWait(true);
-	buf[0] = 0x87;
+	buf[0] = DS2482_CMD_1W_WBIT; //0x87;
 	buf[1] = bit ? 0x80 : 0;
 	ret = I2CWrite(ds2482_Address, buf, 1);
 	if (ret == ESP_FAIL) {
@@ -708,7 +738,7 @@ uint8_t ds2482_wireSearch(uint8_t *newAddr)
 		
 		ds2482_busyWait(true);
 
-		buf[0] = 0x78;
+		buf[0] = DS2482_CMD_1W_TRIPLET; //0x78; for Search-ROM. generates 2 Read-slot+1write slot
 		buf[1] = (direction ? 0x80 : 0);
 		ret = I2CWrite(ds2482_Address, buf, 2);
 		if (ret == ESP_FAIL) {
@@ -815,6 +845,7 @@ int ds_init(int argc, char** argv)
 		d->talert = 0;
 		d->corr = 0;
 		d->Ce = 0;
+			d->errcount=0;
 		if(d->description) { free(d->description); d->description = NULL; }
 	}
 	maxBitResolution =9;
@@ -831,6 +862,8 @@ int ds_init(int argc, char** argv)
 	}
 	ds2482_wireResetSearch();
 
+	xSemaphoreTake(ow_mux, portMAX_DELAY);
+	ds2482_wireResetSearch();
 
 	while (ds2482_wireSearch(deviceAddress)) {
 
@@ -871,6 +904,7 @@ int ds_init(int argc, char** argv)
 	}
 	ESP_LOGI(TAG, "DS18B20 search complete, count: %d", ds18_devices);
 	cJSON_Delete(root);
+	xSemaphoreGive(ow_mux);
 	return 0;
 }
 
@@ -938,9 +972,11 @@ void ds_writeScratchPad(DS18 *ds, const uint8_t* scratchPad)
 	ds2482_wireSelect(ds->deviceAddress);
 	//ds2482_wireWriteByte(COPYSCRATCH, parasite);
 	ds2482_wireWriteByte(COPYSCRATCH);
-	ets_delay_us(20000);  // <--- added 20ms delay to allow 10ms long EEPROM write operation (as specified by datasheet)
+	//ets_delay_us(20000);  // <--- added 20ms delay to allow 10ms long EEPROM write operation (as specified by datasheet)
+	vTaskDelay(20/portTICK_PERIOD_MS);
 
-	if (ds->parasite) ets_delay_us(10000); // 10ms delay
+	if (ds->parasite) // ets_delay_us(10000); // 10ms delay
+		vTaskDelay(10/portTICK_PERIOD_MS);
 	ds2482_wireReset();
 }
 
@@ -1029,7 +1065,8 @@ static int16_t millisToWaitForConversion(uint8_t bitResolution)
 void ds_blockTillConversionComplete(void)
 {
 	int delms = millisToWaitForConversion(maxBitResolution);
-	ets_delay_us(delms*1000);
+	//ets_delay_us(delms*1000);
+	vTaskDelay((delms + portTICK_PERIOD_MS)/portTICK_PERIOD_MS) ;
 }
 
 // reads scratchpad and returns fixed-point temperature, scaling factor 2^-7
@@ -1093,7 +1130,17 @@ int16_t ds_getTemp(DS18 *ds)
 float ds_getTempC(DS18 *ds)
 {
 	if (!ds) return -1;
-	ds->Ce = rawToCelsius(ds_getTemp(ds)) + ds->corr;
+	int16_t newT=ds_getTemp(ds);
+	if  (newT==DEVICE_DISCONNECTED_RAW){ // если ошибка измерения
+		if  (ds->errcount<DS_ERR_LIMIT) {			// и лимит ошибок не превышен
+			ds->errcount++; 				// прибавим счетчик ошибок
+			return ds->Ce;					// и вернем предыдущее измеренное значение
+		}
+		else															// если лимит ошибок превышен
+			return (ds->Ce = rawToCelsius(newT));	// возвращаем Т "как есть"
+	} else  // ошибки нет
+		if (ds->errcount) ds->errcount=0; // сбросим счетчик ошибок
+	ds->Ce = rawToCelsius(newT) + ds->corr;
 	return ds->Ce;
 }
 
@@ -1154,6 +1201,7 @@ void ds_task(void *arg)
 {
 	ds2482_init();	// Detect and init DS2482 chip
 	ds_init(0, NULL); // Detect any DS18B20 connected to Ds2482
+	if (!ow_mux) ow_mux = xSemaphoreCreateMutex();
 	if (PIN_DS18B20>=0) ow_init(PIN_DS18B20);
 
 	const esp_console_cmd_t cmd = {
@@ -1166,26 +1214,31 @@ void ds_task(void *arg)
 
 
 	while(1) {
-		if (ds18_devices) {
-		      	ds_requestTemperatures();
-			for (int i=0; i<MAX_DS; i++) {
-				DS18 *d = &ds[i];
-				if (!d->is_connected) continue;
-				ds_getTempC(d);
-				if (DS_ALARM == d->type && d->Ce > d->talert) {
-					// Alarm mode
-					AlarmMode = ALARM_TEMP;
-					if (SavedAlarmMode != AlarmMode) {
-						sendSMS("Temperature alarm! power switched off!");
-					}
-				} else {
-					AlarmMode &= ~(ALARM_TEMP);
-				}
-				SavedAlarmMode = AlarmMode;
-			}
-		} else {
+		if (!ds18_devices){
 			vTaskDelay(1000/portTICK_PERIOD_MS);
+			continue;
 		}
+
+		xSemaphoreTake(ow_mux, portMAX_DELAY);
+		ds_requestTemperatures();
+		for (int i=0; i<MAX_DS; i++) {
+			DS18 *d = &ds[i];
+			if (!d->is_connected) continue;
+			ds_getTempC(d);
+			if (DS_ALARM == d->type && d->Ce > d->talert) {
+				// Alarm mode
+				AlarmMode = ALARM_TEMP;
+				if (SavedAlarmMode != AlarmMode) {
+					sendSMS("Temperature alarm! power switched off!");
+
+				}
+			} else {
+				AlarmMode &= ~(ALARM_TEMP);
+			}
+			SavedAlarmMode = AlarmMode;
+		}
+		xSemaphoreGive(ow_mux);
+		vTaskDelay(500/portTICK_PERIOD_MS);
 	}
 }
 

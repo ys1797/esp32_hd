@@ -67,7 +67,7 @@ License (MIT license):
 
 #define GPIO_DETECT_ZERO	15 
 #define GPIO_TRIAC		2 
-#define GPIO_BEEP		0 
+#define GPIO_BEEP		17 
 #define GPIO_ALARM		10	// External alarm gpio#
 
 #define PZEM_TXD  (14)

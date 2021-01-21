@@ -68,6 +68,10 @@ extern "C" {
 #define DEVICE_DISCONNECTED_F -196.6 
 #define DEVICE_DISCONNECTED_RAW -7040 
 
+// лимит кол-ва ошибок датчика, до которого возвращается предыдущая температура
+#define DS_ERR_LIMIT 3
+
+
 typedef uint8_t DeviceAddress[8];
 typedef uint8_t ScratchPad[9];
 
@@ -95,6 +99,7 @@ typedef struct {
 	double corr;		// Поправка к темперетуре	
 	double Ce;		// Последнее считанное значение температуры
 	double talert;		// Максимальная температура в режиме аварийного датчика
+	uint8_t  errcount;	// количество сбоев после последнего измерения
 	char  *description;
 } DS18;
 

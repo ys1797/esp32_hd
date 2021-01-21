@@ -56,14 +56,14 @@ vaiable_list DEFL_PARAMS[] =
 	{"ustPowerReg",		VARIABLE_INT,	0,	15000,	"900",	NULL},
 	{"tempEndRectRazgon",	VARIABLE_FLOAT, 0,	120,	"83.0",	NULL},
 	{"powerRect",		VARIABLE_INT,	0,	15000,	"1000",	NULL},
-	{"tEndRectOtbGlv",	VARIABLE_FLOAT, 0,	120,	"85.4",	NULL},
+	{"tEndRectOtbGlv",	VARIABLE_FLOAT, -9999,	120,	"85.4",	NULL},   //отрицательное значение: время отбора голов в минутах
 	{"timeChimRectOtbGlv",	VARIABLE_INT,	0,	10000,	"20",	 NULL},
 	{"procChimOtbGlv",	VARIABLE_INT,	0,	101,	"5",	NULL},
 	{"minProcChimOtbSR",	VARIABLE_INT,	0,	101,	"20",	NULL},
 	{"beginProcChimOtbSR",	VARIABLE_INT,	0,	100,	"40",	NULL},
 	{"timeChimRectOtbSR",	VARIABLE_INT,	0,	1500,	"10",	NULL},
 	{"tempDeltaRect",	VARIABLE_FLOAT, 0,	120,	"0.3",	NULL},
-	{"tempEndRectOtbSR",	VARIABLE_FLOAT, 0,	120,	"96.5", NULL},
+	{"tempEndRectOtbSR",	VARIABLE_FLOAT, -120,	120,	"96.5", NULL}, // отрицательное значение: ТTube20, положительное: T куба
 	{"tempEndRect",		VARIABLE_FLOAT, 0,	120,	"99.5", NULL},
 	{"p_MPX5010",		VARIABLE_INT,	0,	100,	"0",	NULL},
 	{"timeStabKolonna",	VARIABLE_INT,	0,	3500,	"900",	NULL},

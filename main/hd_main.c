@@ -891,7 +891,7 @@ void setStatus(int next)
 				// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов 
 				start_valve_PWMpercent(klp_glwhq,
 						getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
-						90);
+						100);
 
 				setNewMainStatus(PROC_HV);
 			} else if (MainStatus == PROC_HV) {
@@ -928,7 +928,7 @@ void setStatus(int next)
 				// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов
 				start_valve_PWMpercent(klp_glwhq,
 						getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
-						90);
+						100);
 
 				setNewMainStatus(PROC_HV);
 			} else if (MainStatus == PROC_END) {
@@ -963,6 +963,14 @@ int16_t GetSrPWM(void)
 		}	
 	}
 	return found;
+}
+
+bool end_condition_SR(void){
+	float tempEndRectOtbSR = getFloatParam(DEFL_PARAMS, "tempEndRectOtbSR");
+	if (tempEndRectOtbSR>0)					// контроль по Т куба
+		return (getCubeTemp() >= tempEndRectOtbSR);
+	else							// контроль по Т20
+		return (getTube20Temp() >= fabs(tempEndRectOtbSR) );
 }
 
 // Обработка состояний в режиме ректификации
@@ -1086,11 +1094,18 @@ void Rectification(void)
 
 	case PROC_GLV:
 		// Отбор головных фракций
-		t = getCubeTemp();
-		if (t < getFloatParam(DEFL_PARAMS, "tEndRectOtbGlv")) {
-			// Пока температура в кубе не выросла выше окончания отбора голов, продолжаем это состояни
-			break;       
-		}
+		//  проверим: не пора ли завершать отбор голов?
+		do {
+			float tEndRectOtbGlv =getFloatParam(DEFL_PARAMS, "tEndRectOtbGlv");
+			if (tEndRectOtbGlv>0) {																// если tEndRectOtbGlv положительное->это температура куба завершения отбора голов
+				if (getCubeTemp() < tEndRectOtbGlv)  									// если Т куба не достигла заданной Т окончания отбора голов
+					break; 																				// то продолжаем отбор голов
+			} else{																						// если tEndRectOtbGlv отрицательное -> это кол-во минут времени отбора голов
+				if (uptime_counter-secTempPrev < (fabs(tEndRectOtbGlv)*60)) // если время отбора голов не истекло
+					break; 																				// то продолжаем отбор голов
+			}
+		} while (0);
+
 		// Окончание отбора голов
 		closeKlp(klp_glwhq); 			// Отключение клапана отбора голов/хвостов
 		setNewMainStatus(PROC_T_WAIT);		// Переходим к стабилизации температуры
@@ -1117,14 +1132,14 @@ void Rectification(void)
 
 		}
 
-		t = getCubeTemp();
-		if (t >= getFloatParam(DEFL_PARAMS, "tempEndRectOtbSR")) {
+		//---проверим: не пора ли завершить тело и перейти к хвостам?
+		if (end_condition_SR())	{
 			// Переходим к отбору хвостов
 			closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта
-			// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов 
+			// Устанавливаем ШИМ клапан отбора хвостов и голов
 			start_valve_PWMpercent(klp_glwhq,
 					getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
-					90);
+					100); // хвост отбираем на все 100 !
        			setNewMainStatus(PROC_HV);
 			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 			break;
@@ -1159,6 +1174,10 @@ void Rectification(void)
 		t = getTube20Temp();
 
 		int minProcChimOtbSR = getIntParam(DEFL_PARAMS, "minProcChimOtbSR");
+
+		if (t < tempStabSR) {	//если температура стала ниже Т стабилизации, то принимаем ее за новую Т стабилизации (ПБ)
+			setTempStabSR(t);
+		}
 
 		if (t >= tempStabSR + getFloatParam(DEFL_PARAMS, "tempDeltaRect")) {
 			// Температура превысила температуру стабилизации
@@ -1217,14 +1236,16 @@ void Rectification(void)
 			}
 		}
 
-		if (t <= getFloatParam(DEFL_PARAMS, "tempEndRectOtbSR")) {
-			break;
+		// проверим - можно ли продолжать отбор тела?
+		if (! end_condition_SR())	{
+			break;  // продолжаем отбор тела
 		}
+
 		// Температура в кубе превысила температуру при которой надо отбирать СР
 		closeKlp(klp_sr); 			// Отключение клапана продукта
 			start_valve_PWMpercent(klp_glwhq,
 					getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
-					90);
+					100);
 		setNewMainStatus(PROC_HV);			// Переход к отбору хвостов
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		 /* fall through */
