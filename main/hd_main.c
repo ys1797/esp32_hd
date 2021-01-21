@@ -973,6 +973,15 @@ bool end_condition_SR(void){
 		return (getTube20Temp() >= fabs(tempEndRectOtbSR) );
 }
 
+bool end_condition_head(void){
+	float tEndRectOtbGlv =getFloatParam(DEFL_PARAMS, "tEndRectOtbGlv");
+	if (tEndRectOtbGlv>0) 																				// если tEndRectOtbGlv положительное->это температура куба завершения отбора голов
+		return  (getCubeTemp() >= tEndRectOtbGlv); 				// если Т куба достигла заданной Т окончания отбора голов
+	else																											// если tEndRectOtbGlv отрицательное -> это кол-во минут времени отбора голов
+		return ( (uptime_counter-secTempPrev) >= (fabs(tEndRectOtbGlv)*60) );	// время отбора голов истекло
+}
+
+
 // Обработка состояний в режиме ректификации
 void Rectification(void)
 {
@@ -1095,17 +1104,7 @@ void Rectification(void)
 	case PROC_GLV:
 		// Отбор головных фракций
 		//  проверим: не пора ли завершать отбор голов?
-		do {
-			float tEndRectOtbGlv =getFloatParam(DEFL_PARAMS, "tEndRectOtbGlv");
-			if (tEndRectOtbGlv>0) {																// если tEndRectOtbGlv положительное->это температура куба завершения отбора голов
-				if (getCubeTemp() < tEndRectOtbGlv)  									// если Т куба не достигла заданной Т окончания отбора голов
-					break; 																				// то продолжаем отбор голов
-			} else{																						// если tEndRectOtbGlv отрицательное -> это кол-во минут времени отбора голов
-				if (uptime_counter-secTempPrev < (fabs(tEndRectOtbGlv)*60)) // если время отбора голов не истекло
-					break; 																				// то продолжаем отбор голов
-			}
-		} while (0);
-
+		if (!end_condition_head())	break;
 		// Окончание отбора голов
 		closeKlp(klp_glwhq); 			// Отключение клапана отбора голов/хвостов
 		setNewMainStatus(PROC_T_WAIT);		// Переходим к стабилизации температуры
