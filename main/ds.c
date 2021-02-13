@@ -1200,8 +1200,8 @@ alarm_mode SavedAlarmMode;
 void ds_task(void *arg)
 {
 	ds2482_init();	// Detect and init DS2482 chip
-	ds_init(0, NULL); // Detect any DS18B20 connected to Ds2482
 	if (!ow_mux) ow_mux = xSemaphoreCreateMutex();
+	ds_init(0, NULL); // Detect any DS18B20 connected to Ds2482
 	if (PIN_DS18B20>=0) ow_init(PIN_DS18B20);
 
 	const esp_console_cmd_t cmd = {
