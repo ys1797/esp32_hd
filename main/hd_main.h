@@ -45,7 +45,19 @@ typedef enum {
 	ALARM_FREQ  =0x8, 		// Авария: отсутствие напряжения сети
 	ALARM_NOLOAD=0x10,		// Авария: отсутствие подключения нагрузки
 	ALARM_EXT   =0x20, 		// Авария от внешнего источника
+	ALARM_OVER_POWER= 0x40 // Авария: мощность превышает заданную
 } alarm_mode;
+
+typedef enum {
+	cmd_open,
+	cmd_close
+} valve_cmd_t;
+
+typedef struct  {
+	uint8_t valve_num;
+	valve_cmd_t  cmd;
+ } valveCMDmessage_t;
+
 
 #define START_WAIT	0	// Ожидание запуска процесса
 #define PROC_START	1	// Начало процесса
@@ -83,6 +95,7 @@ extern int16_t WaterFlow;	// Значения датчика потока вод
 
 
 
+#define SEC_TO_TICKS(A) ((uint32_t)(A*1000)/portTICK_PERIOD_MS)
 
 #define TICK_RATE_HZ 100
 #define TICK_PERIOD_MS (1000 / TICK_RATE_HZ)
@@ -94,11 +107,17 @@ extern int16_t WaterFlow;	// Значения датчика потока вод
 #define TRIAC_GATE_QUIESCE_CYCLES 10
 #define TRIAC_GATE_MAX_CYCLES 55
 
+//задержка выставления тревоги "пробитие триака" от момента начала превышения мощности, в секундах
+#define TRIAK_ALARM_DELAY_SEC	10
+//превышение текущей мощности от установленной, в % от максимальной, при которой триак считается пробитым
+#define DELTA_TRIAK_ALARM_PRC  5
+
 #define HMAX (1<<LEDC_TIMER_10_BIT)-1
 
 #define VALVE_DUTY 1023
 #define VALVE_ON_FADE_TIME_MS 1000
-
+#define KEEP_KLP_PWM 30  // процент ШИМ удержания
+#define KEEP_KLP_DELAY_MS 100  // задержка начала снижения ШИМ клапана после включения, мс
 
 // Определение для работы с клапанами
 typedef struct  {
@@ -108,12 +127,14 @@ typedef struct  {
 	float timer_sec;		// Отсчет секунд для текущего состояния таймера. (в режиме шим)
 	bool is_open;			// Флаг, что клапан в открытом состоянии
 	int channel;			// Канал ledc
+	TaskHandle_t pwm_task_Handle; // задача программного ШИМ
 } klp_list;
 
 extern klp_list Klp[MAX_KLP];		// Список клапанов.
 #define klp_water 0			// Клапан подачи воды.
 #define klp_glwhq 1			// Клапан отбора голов и хвостов.
 #define klp_sr    2			// Клапан отбора товарного спирта
+#define klp_diff   3			// выключение дифф-автомата
 
 
 void myBeep(bool lng);		// Включаем бипер
@@ -144,8 +165,8 @@ void openKlp(int i);		// Открытие клапана воды
 void closeKlp(int i);		// Закрытие определенного клапана
 void startKlpPwm(int i, float topen, float tclose); // Запуск шима клапана
 
-void valve_off(int valve_num);
-void valve_on(int valve_num);
+//void valve_off(int valve_num);
+//void valve_on(int valve_num);
 void start_valve_PWMpercent(int valve_num, int period_sec, int percent_open);
 
 

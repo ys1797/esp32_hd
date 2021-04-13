@@ -28,6 +28,7 @@ License (MIT license):
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <cJSON.h>
 
 #include "esp_log.h"
@@ -71,8 +72,8 @@ vaiable_list DEFL_PARAMS[] =
 	{"klpSilentNode", 	VARIABLE_CHECKBOX, 0,	1,	"1",	NULL},
 	{"urovenProvodimostSR", VARIABLE_INT,	0,	1000,	"0",	NULL},
 	{"cntCHIM", 		VARIABLE_INT,	-100,	100,	"-4",	NULL},
-	{"decrementCHIM", 	VARIABLE_INT,	0,	100,	"10",	NULL},
-	{"incrementCHIM", 	VARIABLE_INT,	0,	100,	"5",	NULL},
+	{"decrementCHIM", 	VARIABLE_INT,	-100,	100,	"10",	NULL},
+	{"incrementCHIM", 	VARIABLE_INT,	-100,	100,	"5",	NULL},
 	{"timeAutoIncCHIM", 	VARIABLE_INT,	0,	1000,	"600",	NULL},
 	{"alarmMPX5010", 	VARIABLE_INT,	0,	100,	"0",	NULL},
 	{"beepChangeState", 	VARIABLE_CHECKBOX, 0,	1,	"1",	NULL},
@@ -84,6 +85,10 @@ vaiable_list DEFL_PARAMS[] =
 	{"klp1_isPWM", 		VARIABLE_CHECKBOX, 0,	1,	"0",	NULL},
 	{"pzemVersion", 	VARIABLE_INT,	0,	2,	"0",	NULL},
 	{"useExernalAlarm", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL},
+	//------настройки группы безопасности
+	{"alarmDIFFoffT", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Выключать дифф-автомат по тревоге Т
+	{"alarmDIFFoffP", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Выключать дифф-автомат по превышению мощности
+	{"DIFFoffDelay", 	VARIABLE_INT,					0,	600,		  "30",		NULL},//задержка в секундах от момента аварии до выключения дифф-автомата
 	{NULL}
 };
 

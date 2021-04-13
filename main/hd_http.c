@@ -619,7 +619,7 @@ int httpKlpStatus(HttpdConnData *connData)
 			cJSON_AddItemToObject(ja, "is_pwm", cJSON_CreateNumber(Klp[i].is_pwm));
 			cJSON_AddItemToObject(ja, "is_open", cJSON_CreateNumber(Klp[i].is_open));
 			cJSON_AddItemToObject(ja, "pwm_time", cJSON_CreateNumber(pwm));
-			cJSON_AddItemToObject(ja, "pwm_percent", cJSON_CreateNumber(pwm_percent));
+			cJSON_AddItemToObject(ja, "pwm_percent", cJSON_CreateNumber((int)(pwm_percent+0.5)));
 			cJSON_AddItemToObject(ja, "err", cJSON_CreateNumber(0));
 			cJSON_AddItemToObject(ja, "msg", cJSON_CreateString("OK"));
 		}

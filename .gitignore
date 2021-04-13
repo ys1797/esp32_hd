@@ -1,4 +1,6 @@
 build/
+.*/
+.*
 sdkconfig.old
 
 # Prerequisites
@@ -35,3 +37,4 @@ sdkconfig.old
 *.app
 /.cproject
 /.project
+

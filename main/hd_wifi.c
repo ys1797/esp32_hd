@@ -37,7 +37,7 @@ License (MIT license):
 #include "lwip/apps/sntp.h"
 #include <cJSON.h>
 
-#include "captdns.h"
+//#include "captdns.h"
 #include "config.h"
 #include "hd_wifi.h"
 #include "hd_main.h"

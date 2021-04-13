@@ -551,6 +551,13 @@ showStick = function(level,text) {
 <tr><td class="ta_r">PZEM протокол v.30 (modbus RTU) <span class="red">*</span>: </td>
 <td class="ta_l"><input id="pzemVersion" type="checkbox" value=1>Да</td></tr>
 
+<tr><td class="ta_r">Выключать дифф-автомат по тревоге Т: </td>
+  <td class="ta_l"><input id="alarmDIFFoffT" type="checkbox" value=0></td></tr>
+<tr><td class="ta_r">Выключать дифф-автомат по превышению мощности: </td>
+  <td class="ta_l"><input id="alarmDIFFoffP" type="checkbox" value=0></td></tr>
+<tr><td class="ta_r">Задержка выключения дифф-автомата, сек: </td>
+  <td class="ta_l"><input id="DIFFoffDelay" type="text" size="4" maxlength="4"></td></tr>
+
 <tr><td colspan="2" class="ta_c">
 <input type="button" value="Восстановить по умолчанию" onclick="default_parameters();"/>
 <input type="button" value="Сохранить изменения" onclick="set_parameters();"/>
@@ -925,11 +932,14 @@ default_parameters = function() {
 }
 
 set_parameters = function() {
-  var beepChangeState=0, klpSilentNode=0, klp1_isPWM=0, pzemVersion=0;
+  var beepChangeState=0, klpSilentNode=0, klp1_isPWM=0, pzemVersion=0, alarmDIFFoffT=0,alarmDIFFoffP=0;
   if($('#beepChangeState').is(':checked')) beepChangeState=1;
   if($('#klpSilentNode').is(':checked')) klpSilentNode=1;
   if($('#klp1_isPWM').is(':checked')) klp1_isPWM=1;
   if($('#pzemVersion').is(':checked')) pzemVersion=1;
+
+  if($('#alarmDIFFoffT').is(':checked')) alarmDIFFoffT=1;
+  if($('#alarmDIFFoffP').is(':checked')) alarmDIFFoffP=1;
 
   $.post('/saveparam', {
         'maxPower': $("#maxPower").val(),
@@ -962,7 +972,9 @@ set_parameters = function() {
 	'klp1_isPWM': klp1_isPWM,
 	'pzemVersion': pzemVersion,
 	'processGpio': $("#processGpio").val(),
-
+    'alarmDIFFoffT': alarmDIFFoffT,
+    'alarmDIFFoffP': alarmDIFFoffP,
+    'DIFFoffDelay': $("#DIFFoffDelay").val()
    }, function(d) {
        disp_setting();
    }, 'json');
@@ -1003,10 +1015,16 @@ disp_setting = function() {
         else $('#beepChangeState').removeAttr('checked');
 	if (eval(d.klp1_isPWM)) $('#klp1_isPWM').prop('checked', 1);
 	else $('#klp1_isPWM').removeAttr('checked');
+    
 	if (eval(d.pzemVersion)) $('#pzemVersion').prop('checked', 1);
 	else $('#pzemVersion').removeAttr('checked');
 	$("#processGpio").val(d.processGpio);
 
+	if (eval(d.alarmDIFFoffT)) $('#alarmDIFFoffT').prop('checked', 1);
+	else $('#alarmDIFFoffT').removeAttr('checked');
+	if (eval(d.alarmDIFFoffP)) $('#alarmDIFFoffP').prop('checked', 1);
+	else $('#alarmDIFFoffP').removeAttr('checked');
+	$("#DIFFoffDelay").val(d.DIFFoffDelay);
 
   }, 'json');
   $("#param_setup").show();
