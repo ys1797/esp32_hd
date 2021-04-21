@@ -37,7 +37,7 @@ input {background-color: #dfdfdf; padding: 5px;}</style>
 <input type=button onclick='start_update();' value='Начать обновление' />
 <input type=button onclick='window.location.href="/index.html";' value='Вернуться на главную' />
 </div>
-<div id=f_p class=fs>Начало обнавления..</div>
+<div id=f_p class=fs>Старт обновления..</div>
 <hr />
 </div>
 <script>
@@ -98,7 +98,7 @@ function upload(blobOrFile,act) {
     if (this.status == 200) {
                var j=JSON.parse(this.response);
                var log=document.getElementById('f_p');
-      log.innerHTML=log.innerHTML+'success '+ j.received+'/'+j.written;
+      log.innerHTML=log.innerHTML+'<br>done! receive/written '+ j.received+'/'+j.written;
     } else {
       log.innerHTML=log.innerHTML+'<br>error ' + this.status;
     }
@@ -121,7 +121,6 @@ document.forms.upload.onsubmit = function() {
  }
  return false;
 }
-
 
 </script></body></html>
 )END";

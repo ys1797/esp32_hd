@@ -557,6 +557,10 @@ showStick = function(level,text) {
   <td class="ta_l"><input id="alarmDIFFoffP" type="checkbox" value=0></td></tr>
 <tr><td class="ta_r">Задержка выключения дифф-автомата, сек: </td>
   <td class="ta_l"><input id="DIFFoffDelay" type="text" size="4" maxlength="4"></td></tr>
+<tr><td class="ta_r">Выключать дифф-автомат при старте: </td>
+  <td class="ta_l"><input id="DIFFoffOnStart" type="checkbox" value=0></td></tr>
+<tr><td class="ta_r">Выключать дифф-автомат при завершении: </td>
+  <td class="ta_l"><input id="DIFFoffOnStop" type="checkbox" value=0></td></tr>
 
 <tr><td colspan="2" class="ta_c">
 <input type="button" value="Восстановить по умолчанию" onclick="default_parameters();"/>
@@ -932,7 +936,9 @@ default_parameters = function() {
 }
 
 set_parameters = function() {
-  var beepChangeState=0, klpSilentNode=0, klp1_isPWM=0, pzemVersion=0, alarmDIFFoffT=0,alarmDIFFoffP=0;
+  var beepChangeState=0, klpSilentNode=0, klp1_isPWM=0, pzemVersion=0;
+  var alarmDIFFoffT=0,alarmDIFFoffP=0,DIFFoffOnStart=0,DIFFoffOnStop=0;
+
   if($('#beepChangeState').is(':checked')) beepChangeState=1;
   if($('#klpSilentNode').is(':checked')) klpSilentNode=1;
   if($('#klp1_isPWM').is(':checked')) klp1_isPWM=1;
@@ -940,6 +946,8 @@ set_parameters = function() {
 
   if($('#alarmDIFFoffT').is(':checked')) alarmDIFFoffT=1;
   if($('#alarmDIFFoffP').is(':checked')) alarmDIFFoffP=1;
+  if($('#DIFFoffOnStart').is(':checked')) DIFFoffOnStart=1;
+  if($('#DIFFoffOnStop').is(':checked')) DIFFoffOnStop=1;
 
   $.post('/saveparam', {
         'maxPower': $("#maxPower").val(),
@@ -974,6 +982,8 @@ set_parameters = function() {
 	'processGpio': $("#processGpio").val(),
     'alarmDIFFoffT': alarmDIFFoffT,
     'alarmDIFFoffP': alarmDIFFoffP,
+    'DIFFoffOnStart': DIFFoffOnStart,
+    'DIFFoffOnStop': DIFFoffOnStop,
     'DIFFoffDelay': $("#DIFFoffDelay").val()
    }, function(d) {
        disp_setting();
@@ -1024,6 +1034,11 @@ disp_setting = function() {
 	else $('#alarmDIFFoffT').removeAttr('checked');
 	if (eval(d.alarmDIFFoffP)) $('#alarmDIFFoffP').prop('checked', 1);
 	else $('#alarmDIFFoffP').removeAttr('checked');
+	if (eval(d.DIFFoffOnStart)) $('#DIFFoffOnStart').prop('checked', 1);
+	else $('#DIFFoffOnStart').removeAttr('checked');
+	if (eval(d.DIFFoffOnStop)) $('#DIFFoffOnStop').prop('checked', 1);
+	else $('#DIFFoffOnStop').removeAttr('checked');
+    
 	$("#DIFFoffDelay").val(d.DIFFoffDelay);
 
   }, 'json');

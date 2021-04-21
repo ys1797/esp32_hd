@@ -169,6 +169,14 @@ void myBeep(bool lng)
 	gpio_set_level(GPIO_BEEP, 1);	
 }
 
+void shortBeep(void)
+{
+	if (beepActive) return;
+	beeperTime = 150;
+	beepActive = true;
+	gpio_set_level(GPIO_BEEP, 1);
+}
+
 double roundX (double x, int precision)
 {
    int mul = 10;
@@ -183,36 +191,45 @@ double roundX (double x, int precision)
 
 extern uint8_t PZEM_Version;	// Device version 3.0 in use ?
 
+void diffOffTask(void *arg){
+	openKlp(klp_diff);
+	vTaskDelay(5000/portTICK_PERIOD_MS);
+	closeKlp(klp_diff);
+	vTaskDelete(NULL);
+}
+
+bool is_diffOffCondition(void){
+	return (	((AlarmMode & ALARM_OVER_POWER)&&(getIntParam(DEFL_PARAMS, "alarmDIFFoffP")))
+			   ||
+			        ((AlarmMode & ALARM_TEMP)&&(getIntParam(DEFL_PARAMS, "alarmDIFFoffT"))));
+}
+
 void alarmControlTask(void *arg){
-	bool fDIFFoffByT, fDIFFoffByP;
 	int vDIFFoffDelaySec;
 	TickType_t vDIFFoffTime;
-	bool  flag_delayOn=0;
 
-	fDIFFoffByT = getIntParam(DEFL_PARAMS, "alarmDIFFoffT");
-	fDIFFoffByP =  getIntParam(DEFL_PARAMS, "alarmDIFFoffP");
-	vDIFFoffDelaySec = getIntParam(DEFL_PARAMS, "DIFFoffDelay");
-	if ( fDIFFoffByT || fDIFFoffByP )
-		while(1) {
-			if (	( fDIFFoffByP && (AlarmMode & ALARM_OVER_POWER))
-				 || ( fDIFFoffByT && (AlarmMode & ALARM_TEMP))
-				)
-			{
-				if (!flag_delayOn){// первое детектирование тревоги, начинаем отсчет времени выключения дифа
-					vDIFFoffTime = xTaskGetTickCount () + SEC_TO_TICKS(vDIFFoffDelaySec);//
-					flag_delayOn = true;
-				}
-				else {// ждем время выключения диф-автомата
-					if (xTaskGetTickCount () > vDIFFoffTime){ //время пришло
-						openKlp(klp_diff);
-					}
-				}
+	while(1) {
+		if  ( is_diffOffCondition() )	{
+			vDIFFoffDelaySec = getIntParam(DEFL_PARAMS, "DIFFoffDelay");
+			ESP_LOGE(__func__,"start DIFF-OFF proc. Delay (%d sec)",vDIFFoffDelaySec);
+			if (AlarmMode & ALARM_OVER_POWER)	 	ESP_LOGE(__func__,"			overPower");
+			if (AlarmMode & ALARM_TEMP) 					ESP_LOGE(__func__,"			overTemerature");
+
+			vDIFFoffTime = xTaskGetTickCount () + SEC_TO_TICKS(vDIFFoffDelaySec);
+			while (xTaskGetTickCount ()<vDIFFoffTime) {// задержка выключения диф-автомата
+				shortBeep();
+				vTaskDelay(SEC_TO_TICKS(1));
 			}
-			else {// нет битов тревоги
-					flag_delayOn = false;	//сбрасываем отсчет времени выключения дифа
+			if (is_diffOffCondition()){ // если ситуация не исправилась
+				ESP_LOGE(__func__,"DIFF turned off");
+				openKlp(klp_diff); 											// подаем напряжение (клапан 4)
+				vTaskDelay(SEC_TO_TICKS(5));
+				closeKlp(klp_diff);											// через 5 сек - снимаем напряжение с клапана
 			}
-			vTaskDelay(500/portTICK_PERIOD_MS);
 		}
+		vTaskDelay(1000/portTICK_PERIOD_MS);
+	}
+	vTaskDelete(NULL);
 }
 
 void pzem_task(void *arg)
@@ -680,7 +697,7 @@ cJSON* getInformation(void)
 		cJSON_AddItemToObject(jt, "descr", cJSON_CreateString(d->description?d->description:""));
 		cJSON_AddItemToObject(jt, "type_str", cJSON_CreateString(getDsTypeStr(d->type)));
 		cJSON_AddItemToObject(jt, "type", cJSON_CreateNumber(d->type));
-		snprintf(data, sizeof(data)-1, "%02.1f", d->Ce);
+		snprintf(data, sizeof(data)-1, "%02.2f", d->Ce);
 		cJSON_AddItemToObject(jt, "temp", cJSON_CreateString(data));
 
 	}
@@ -1348,6 +1365,9 @@ void Rectification(void)
 
 	case PROC_END:
 		// Окончание работы
+		if (getIntParam(DEFL_PARAMS, "DIFFoffOnStop")) {
+			xTaskCreate(&diffOffTask, "diff Off task", 4096, NULL, 1, NULL); // выключаем дифф
+		}
 		break;
 	}
 }
@@ -1412,6 +1432,9 @@ void Distillation(void)
 		closeAllKlp();		// Закрытие всех клапанов.
 		sprintf(b, "Distillation complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
 		sendSMS(b);
+		if (getIntParam(DEFL_PARAMS, "DIFFoffOnStop")) {
+			xTaskCreate(&diffOffTask, "diff Off task", 4096, NULL, 1, NULL); // выключаем дифф
+		}
 		break;
 	}
 }
@@ -1448,7 +1471,7 @@ void closeAllKlp(void)
 }
 
 /*
- * Открытие клапана воды
+ * Открытие клапана с выключением программного ШИМ
  */
 void openKlp(int i)
 {
@@ -1457,7 +1480,7 @@ void openKlp(int i)
 }
 
 /*
- * Закрытие клапана с выключением ШИМ
+ * Закрытие клапана с выключением программного ШИМ
  */
 void closeKlp(int i)
 {
@@ -1710,9 +1733,6 @@ void app_main(void)
 	/* Поиск и настройка датиков температуры и периодический опрос их */
 	xTaskCreate(&ds_task, "ds_task", 4096, NULL, 1, NULL);
 
-	/* задача контроля флагов тревоги и выключения дифф-автомата*/
-	xTaskCreate(&alarmControlTask, "alarmControl", 4096, NULL, 1, NULL);
-
 	/* Инициализация датчика давления bmp 180 */
 	initBMP085();
 
@@ -1804,6 +1824,12 @@ void app_main(void)
 		xTaskCreate(valveCMDtask, "valveCMDtask", 8192, NULL, 5, NULL);	//---задача включения/выключения клапанов по командам
 	}
 
+	/* задача контроля флагов тревоги и выключения дифф-автомата*/
+	xTaskCreate(&alarmControlTask, "alarmControl", 4096, NULL, 1, NULL);
+	if (getIntParam(DEFL_PARAMS, "DIFFoffOnStart")) {// при настройке "выключать дифф при старте"
+		xTaskCreate(&diffOffTask, "diff Off task", 4096, NULL, 1, NULL); // выключаем дифф
+	}
+
 	ESP_ERROR_CHECK(gpio_intr_enable(GPIO_DETECT_ZERO));
 	ESP_LOGI(TAG, "Enabled zero crossing interrupt.\n");
 
@@ -1855,7 +1881,7 @@ void valveCMDtask(void *arg){
 	#endif
 					Klp[qcmd.valve_num].is_open = true;
 					// ---------логика снижения ШИМ клапана после его включения---------
-					if (qcmd.valve_num == klp_water) break; 														//если вода - не снижаем
+					if ((qcmd.valve_num == klp_water)||((qcmd.valve_num == klp_diff))) break; 	//если вода или дифф - не снижаем
 
 					if ((KEEP_KLP_PWM==0)||(KEEP_KLP_PWM==100)) break;								// если настройка ШИМ удержания 0 или 100 - не снижаем
 					if (	(Klp[qcmd.valve_num].is_pwm)																//если клапан в ШИМ

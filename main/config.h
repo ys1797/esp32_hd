@@ -93,7 +93,7 @@ enum variable_type {
         VARIABLE_CHECKBOX,
         VARIABLE_STRING,
         VARIABLE_INT,
-	VARIABLE_FLOAT
+		VARIABLE_FLOAT
 };
 
 // Определение переменной

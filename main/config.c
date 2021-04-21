@@ -89,6 +89,8 @@ vaiable_list DEFL_PARAMS[] =
 	{"alarmDIFFoffT", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Выключать дифф-автомат по тревоге Т
 	{"alarmDIFFoffP", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Выключать дифф-автомат по превышению мощности
 	{"DIFFoffDelay", 	VARIABLE_INT,					0,	600,		  "30",		NULL},//задержка в секундах от момента аварии до выключения дифф-автомата
+	{"DIFFoffOnStart", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Выключать дифф-автомат при старте
+	{"DIFFoffOnStop", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Выключать дифф-автомат при завершении
 	{NULL}
 };
 

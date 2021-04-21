@@ -58,6 +58,7 @@ const int DISCONNECTED_BIT = BIT1;
 
 static int retryNum = 0;
 static char is_connected = 0;
+static esp_netif_t* net_instanse_ptr;
 
 
 const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT" };
@@ -268,7 +269,7 @@ int wifi_cmd_ap_set(void)
 			.authmode = WIFI_AUTH_OPEN
 	        },
 	};
-	esp_netif_create_default_wifi_ap();
+	net_instanse_ptr = esp_netif_create_default_wifi_ap();
 
 	strlcpy((char*) wifi_config.ap.ssid, Hostname, sizeof(wifi_config.sta.ssid));
 
@@ -287,6 +288,7 @@ int wifi_cmd_ap_set(void)
  */
 esp_err_t wifiSetup(void)
 {
+	net_instanse_ptr = NULL;
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	wifi_event_group = xEventGroupCreate();
 
@@ -310,7 +312,7 @@ esp_err_t wifiSetup(void)
 		wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
 		wifi_config_t wifi_config = { 0 };
 
-		esp_netif_create_default_wifi_sta();
+		net_instanse_ptr = esp_netif_create_default_wifi_sta();
 
 		strlcpy((char*) wifi_config.sta.ssid, w->ssid, sizeof(wifi_config.sta.ssid));
 		if (strlen(w->password)) {
@@ -327,5 +329,6 @@ esp_err_t wifiSetup(void)
 	return ESP_OK;
 }
 
-
-
+esp_netif_t *getNetHandle(void){
+	return net_instanse_ptr;
+}

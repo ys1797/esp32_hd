@@ -28,6 +28,7 @@ License (MIT license):
 #include <stdlib.h>
 #include <dirent.h>
 #include <sys/unistd.h>
+#include "sys/stat.h"
 #include <ctype.h>
 #include "esp_platform.h"
 #include "esp_log.h"
@@ -51,6 +52,7 @@ License (MIT license):
 #include "hd_main.h"
 #include "ds.h"
 
+#define HTTP_SEND(A,B,C)  do { if (!httpdSend(A,B,C)) ESP_LOGE(__func__,"out of memory in httpdSend()");} while(0)
 
 char ha1[34];
 typedef struct {
