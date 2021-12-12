@@ -59,6 +59,16 @@ License (MIT license):
 #define SSID_SIZE           (32)                // Maximum SSID size
 #define PASSWORD_SIZE       (64)                // Maximum password size
 
+#define DISP_TYPE_SH1106	0
+#define DISP_TYPE_ILI9341	1
+#define DISP_TYPE_ILI9488	2
+#define DISP_TYPE_ST7789V	3
+#define DISP_TYPE_ST7735	4
+#define DISP_TYPE_ST7735R	5
+#define DISP_TYPE_ST7735B	6
+#define DISP_TYPE_MAX		7
+
+
 /* GPIO */
 #define I2C_MASTER_SCL_IO    	4    /*!< gpio number for I2C master clock */
 #define I2C_MASTER_SDA_IO    	5    /*!< gpio number for I2C master data  */
