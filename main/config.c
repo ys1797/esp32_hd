@@ -45,6 +45,7 @@ vaiable_list NET_PARAMS[] =
 	{"smscPhones",		VARIABLE_STRING, 0,	0,	"",		NULL},
 	{"useSmsc", 		VARIABLE_INT,	 0,	2,      "0",		NULL},
 	{"wsPeriod", 		VARIABLE_INT,	 0, 	60,	"5",		NULL},
+	{"dispType", 		VARIABLE_INT,	 -1, 	10,	"0",		NULL},
 	{NULL}
 };
 
