@@ -37,7 +37,6 @@ License (MIT license):
 #include "lwip/apps/sntp.h"
 #include <cJSON.h>
 
-//#include "captdns.h"
 #include "config.h"
 #include "hd_wifi.h"
 #include "hd_main.h"
@@ -78,7 +77,11 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 		ESP_LOGI(TAG, "netmask: " IPSTR "\n", IP2STR(&event->ip_info.netmask));
 		ESP_LOGI(TAG, "gw: " IPSTR "\n", IP2STR(&event->ip_info.gw));
 		ESP_LOGI(TAG, "Initializing SNTP");
-		setenv("TZ", "MSK-3", 1);
+
+		char tz[20];
+		snprintf(tz, 20, "CST-%d", getIntParam(NET_PARAMS, "timezone"));
+		setenv("TZ", tz, 1);
+		tzset();
 		sntp_setoperatingmode(SNTP_OPMODE_POLL);
 		sntp_setservername(0, "pool.ntp.org");
 		sntp_init();
@@ -118,7 +121,11 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 			sntp_stop();
 			ESP_LOGI(TAG, "WiFi disconnect event, resason: %d", event->reason);
 
-			if (!is_connected && WIFI_REASON_NO_AP_FOUND == event->reason) {
+			if ((!is_connected)	&&
+					(	(WIFI_REASON_NO_AP_FOUND == event->reason)||
+						(WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT == event->reason)
+					)
+				) {
 				WIFI_currentAp++;
 				if (WIFI_currentAp< WIFI_knowApCount) {
 					wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
@@ -194,7 +201,7 @@ int8_t scanWifiNetworks(bool async, bool show_hidden, bool passive, uint32_t max
 		WIFI_scanComplete = false;
 		WIFI_scanStarted = true;
 		if (async) return 0;
-		while (!WIFI_scanComplete) ets_delay_us(10000);
+		while (!WIFI_scanComplete) vTaskDelay(100/portTICK_PERIOD_MS);
 		return WIFI_scanCount;
         }
 	return -1;
@@ -269,6 +276,9 @@ int wifi_cmd_ap_set(void)
 			.authmode = WIFI_AUTH_OPEN
 	        },
 	};
+	if (net_instanse_ptr!=NULL){
+		esp_wifi_clear_default_wifi_driver_and_handlers(net_instanse_ptr);
+	}
 	net_instanse_ptr = esp_netif_create_default_wifi_ap();
 
 	strlcpy((char*) wifi_config.ap.ssid, Hostname, sizeof(wifi_config.sta.ssid));

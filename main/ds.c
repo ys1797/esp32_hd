@@ -1131,15 +1131,15 @@ float ds_getTempC(DS18 *ds)
 {
 	if (!ds) return -1;
 	int16_t newT=ds_getTemp(ds);
-	if  (newT==DEVICE_DISCONNECTED_RAW){ // ���� ������ ���������
-		if  (ds->errcount<DS_ERR_LIMIT) {			// � ����� ������ �� ��������
-			ds->errcount++; 				// �������� ������� ������
-			return ds->Ce;					// � ������ ���������� ���������� ��������
+	if  (newT==DEVICE_DISCONNECTED_RAW){ 		// if incorrect value from the sensor
+		if  (ds->errcount<DS_ERR_LIMIT) {				// check errors limit, if it isn't exeeded
+			ds->errcount++; 										// just add counter of errors
+			return ds->Ce;											// and return the previous correct T
 		}
-		else															// ���� ����� ������ ��������
-			return (ds->Ce = rawToCelsius(newT));	// ���������� � "��� ����"
-	} else  // ������ ���
-		if (ds->errcount) ds->errcount=0; // ������� ������� ������
+		else																//if errors limit is exceeded
+			return (ds->Ce = rawToCelsius(newT));		// return new T "as is"
+	} else  																// if T correct, so
+		if (ds->errcount) ds->errcount=0; 					// reset the errors counter to 0
 	ds->Ce = rawToCelsius(newT) + ds->corr;
 	return ds->Ce;
 }

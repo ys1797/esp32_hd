@@ -470,7 +470,8 @@ showStick = function(level,text) {
 <td class="ta_l"> <input id="smscPhones" type="text" size="80" maxlength="80"></td></tr>
 <tr><td class="ta_r" style="border-top: 2px solid;">Период обновления для websocket:</td>
 <td class="ta_l" style="border-top: 2px solid;"> <input id="wsPeriod" type="text" size="3" maxlength="4"> Сек.</td></tr>
-
+<tr><td class="ta_r">Time zone (GMT 0-12):</td>
+<td class="ta_l"> <input id="timezone" type="text" size="2" maxlength="3"></td></tr>
 
 <tr><td class="ta_c" colspan="2"><input type="button" id="net_save_cfg" onclick="save_network();" value="Сохранить настройки" /></td></tr>
 <tr><td colspan="2" id="net_saveok" class="ta_c" style="font-weidth: bold; color:green; display: none;">New setting will be effective after restart.</td></tr>
@@ -895,7 +896,8 @@ save_network = function () {
 	'smscHash': $('#smscHash').val(),
 	'smscPhones': $('#smscPhones').val(),
 	'useSmsc':useSmsc,
-	'wsPeriod': $('#wsPeriod').val()
+	'wsPeriod': $('#wsPeriod').val(),
+	'timezone': $('#timezone').val()
    }, function(d) {
 	$('#net_saveok').show();
    }, 'json')
@@ -919,6 +921,7 @@ disp_network = function () {
 	if (eval(d.useSmsc)) $('#useSmsc').prop('checked', 1);
 	else $('#useSmsc').removeAttr('checked');
 	$('#wsPeriod').val(d.wsPeriod);
+	$('#timezone').val(d.timezone);
 
 	$("#passmatch").hide();
 	$("#saveok").hide();
