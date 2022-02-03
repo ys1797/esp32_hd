@@ -435,7 +435,7 @@ int httpIndex(HttpdConnData *connData)
 	return HTTPD_CGI_DONE;
 }
 
-/* Âûäà÷à/ñîõðàíåíèå ñåòåâûõ ïàðàìåòðâ */
+/* Ã‚Ã»Ã¤Ã Ã·Ã /Ã±Ã®ÃµÃ°Ã Ã­Ã¥Ã­Ã¨Ã¥ Ã±Ã¥Ã²Ã¥Ã¢Ã»Ãµ Ã¯Ã Ã°Ã Ã¬Ã¥Ã²Ã°Ã¢ */
 int httpNetSetup(HttpdConnData *connData)
 {
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;
@@ -454,6 +454,7 @@ int httpNetSetup(HttpdConnData *connData)
 		cJSON_AddItemToObject(ja, "smscPhones", cJSON_CreateString(getStringParam(NET_PARAMS, "smscPhones")));
 		cJSON_AddItemToObject(ja, "useSmsc", cJSON_CreateNumber(getIntParam(NET_PARAMS, "useSmsc")));
 		cJSON_AddItemToObject(ja, "wsPeriod", cJSON_CreateNumber(wsPeriod));
+		cJSON_AddItemToObject(ja, "dispType", cJSON_CreateNumber(dispType));
 
 		char *r=cJSON_Print(ja);
 		httpdSend(connData, r, strlen(r));
@@ -475,13 +476,14 @@ int httpNetSetup(HttpdConnData *connData)
 		httpPassword = getStringParam(NET_PARAMS, "pass");
 		httpSecure = getIntParam(NET_PARAMS, "secure");
 		wsPeriod = getIntParam(NET_PARAMS, "wsPeriod");
+		dispType = getIntParam(NET_PARAMS, "dispType");
 		json_ok(connData);
 	}
 	return HTTPD_CGI_DONE;
 }
 
 
-/* Ñáðîñ ïàðàìåòðîâ â çíà÷åíèå ïî óìîë÷àíèþ */
+/* Ã‘Ã¡Ã°Ã®Ã± Ã¯Ã Ã°Ã Ã¬Ã¥Ã²Ã°Ã®Ã¢ Ã¢ Ã§Ã­Ã Ã·Ã¥Ã­Ã¨Ã¥ Ã¯Ã® Ã³Ã¬Ã®Ã«Ã·Ã Ã­Ã¨Ã¾ */
 int httpParamDefault(HttpdConnData *connData)
 {
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;

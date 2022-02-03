@@ -73,9 +73,9 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 		is_connected = 1; // Set connected flag
 		xEventGroupClearBits(wifi_event_group, DISCONNECTED_BIT);
 		xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
-		ESP_LOGI(TAG, "got ip: " IPSTR "\n", IP2STR(&event->ip_info.ip));
-		ESP_LOGI(TAG, "netmask: " IPSTR "\n", IP2STR(&event->ip_info.netmask));
-		ESP_LOGI(TAG, "gw: " IPSTR "\n", IP2STR(&event->ip_info.gw));
+		ESP_LOGI(TAG, "got ip: " IPSTR, IP2STR(&event->ip_info.ip));
+		ESP_LOGI(TAG, "netmask: " IPSTR, IP2STR(&event->ip_info.netmask));
+		ESP_LOGI(TAG, "gw: " IPSTR, IP2STR(&event->ip_info.gw));
 		ESP_LOGI(TAG, "Initializing SNTP");
 
 		char tz[20];
