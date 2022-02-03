@@ -470,7 +470,8 @@ showStick = function(level,text) {
 <td class="ta_l"> <input id="smscPhones" type="text" size="80" maxlength="80"></td></tr>
 <tr><td class="ta_r" style="border-top: 2px solid;">Период обновления для websocket:</td>
 <td class="ta_l" style="border-top: 2px solid;"> <input id="wsPeriod" type="text" size="3" maxlength="4"> Сек.</td></tr>
-
+<tr><td class="ta_r">Time zone (GMT 0-12):</td>
+<td class="ta_l"> <input id="timezone" type="text" size="2" maxlength="3"></td></tr>
 
 <tr><td class="ta_c" colspan="2"><input type="button" id="net_save_cfg" onclick="save_network();" value="Сохранить настройки" /></td></tr>
 <tr><td colspan="2" id="net_saveok" class="ta_c" style="font-weidth: bold; color:green; display: none;">New setting will be effective after restart.</td></tr>
@@ -550,6 +551,17 @@ showStick = function(level,text) {
 
 <tr><td class="ta_r">PZEM протокол v.30 (modbus RTU) <span class="red">*</span>: </td>
 <td class="ta_l"><input id="pzemVersion" type="checkbox" value=1>Да</td></tr>
+
+<tr><td class="ta_r">Выключать дифф-автомат по тревоге Т: </td>
+  <td class="ta_l"><input id="alarmDIFFoffT" type="checkbox" value=0></td></tr>
+<tr><td class="ta_r">Выключать дифф-автомат по превышению мощности: </td>
+  <td class="ta_l"><input id="alarmDIFFoffP" type="checkbox" value=0></td></tr>
+<tr><td class="ta_r">Задержка выключения дифф-автомата, сек: </td>
+  <td class="ta_l"><input id="DIFFoffDelay" type="text" size="4" maxlength="4"></td></tr>
+<tr><td class="ta_r">Выключать дифф-автомат при старте: </td>
+  <td class="ta_l"><input id="DIFFoffOnStart" type="checkbox" value=0></td></tr>
+<tr><td class="ta_r">Выключать дифф-автомат при завершении: </td>
+  <td class="ta_l"><input id="DIFFoffOnStop" type="checkbox" value=0></td></tr>
 
 <tr><td colspan="2" class="ta_c">
 <input type="button" value="Восстановить по умолчанию" onclick="default_parameters();"/>
@@ -884,7 +896,8 @@ save_network = function () {
 	'smscHash': $('#smscHash').val(),
 	'smscPhones': $('#smscPhones').val(),
 	'useSmsc':useSmsc,
-	'wsPeriod': $('#wsPeriod').val()
+	'wsPeriod': $('#wsPeriod').val(),
+	'timezone': $('#timezone').val()
    }, function(d) {
 	$('#net_saveok').show();
    }, 'json')
@@ -908,6 +921,7 @@ disp_network = function () {
 	if (eval(d.useSmsc)) $('#useSmsc').prop('checked', 1);
 	else $('#useSmsc').removeAttr('checked');
 	$('#wsPeriod').val(d.wsPeriod);
+	$('#timezone').val(d.timezone);
 
 	$("#passmatch").hide();
 	$("#saveok").hide();
@@ -926,10 +940,17 @@ default_parameters = function() {
 
 set_parameters = function() {
   var beepChangeState=0, klpSilentNode=0, klp1_isPWM=0, pzemVersion=0;
+  var alarmDIFFoffT=0,alarmDIFFoffP=0,DIFFoffOnStart=0,DIFFoffOnStop=0;
+
   if($('#beepChangeState').is(':checked')) beepChangeState=1;
   if($('#klpSilentNode').is(':checked')) klpSilentNode=1;
   if($('#klp1_isPWM').is(':checked')) klp1_isPWM=1;
   if($('#pzemVersion').is(':checked')) pzemVersion=1;
+
+  if($('#alarmDIFFoffT').is(':checked')) alarmDIFFoffT=1;
+  if($('#alarmDIFFoffP').is(':checked')) alarmDIFFoffP=1;
+  if($('#DIFFoffOnStart').is(':checked')) DIFFoffOnStart=1;
+  if($('#DIFFoffOnStop').is(':checked')) DIFFoffOnStop=1;
 
   $.post('/saveparam', {
         'maxPower': $("#maxPower").val(),
@@ -962,7 +983,11 @@ set_parameters = function() {
 	'klp1_isPWM': klp1_isPWM,
 	'pzemVersion': pzemVersion,
 	'processGpio': $("#processGpio").val(),
-
+    'alarmDIFFoffT': alarmDIFFoffT,
+    'alarmDIFFoffP': alarmDIFFoffP,
+    'DIFFoffOnStart': DIFFoffOnStart,
+    'DIFFoffOnStop': DIFFoffOnStop,
+    'DIFFoffDelay': $("#DIFFoffDelay").val()
    }, function(d) {
        disp_setting();
    }, 'json');
@@ -1003,10 +1028,21 @@ disp_setting = function() {
         else $('#beepChangeState').removeAttr('checked');
 	if (eval(d.klp1_isPWM)) $('#klp1_isPWM').prop('checked', 1);
 	else $('#klp1_isPWM').removeAttr('checked');
+    
 	if (eval(d.pzemVersion)) $('#pzemVersion').prop('checked', 1);
 	else $('#pzemVersion').removeAttr('checked');
 	$("#processGpio").val(d.processGpio);
 
+	if (eval(d.alarmDIFFoffT)) $('#alarmDIFFoffT').prop('checked', 1);
+	else $('#alarmDIFFoffT').removeAttr('checked');
+	if (eval(d.alarmDIFFoffP)) $('#alarmDIFFoffP').prop('checked', 1);
+	else $('#alarmDIFFoffP').removeAttr('checked');
+	if (eval(d.DIFFoffOnStart)) $('#DIFFoffOnStart').prop('checked', 1);
+	else $('#DIFFoffOnStart').removeAttr('checked');
+	if (eval(d.DIFFoffOnStop)) $('#DIFFoffOnStop').prop('checked', 1);
+	else $('#DIFFoffOnStop').removeAttr('checked');
+    
+	$("#DIFFoffDelay").val(d.DIFFoffDelay);
 
   }, 'json');
   $("#param_setup").show();

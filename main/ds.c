@@ -1080,12 +1080,12 @@ int16_t ds_calculateTemperature(DS18 *ds, uint8_t* scratchPad)
     /*
     DS1820 and DS18S20 have a 9-bit temperature register.
     Resolutions greater than 9-bit can be calculated using the data from
-    the temperature, and COUNT REMAIN and COUNT PER °C registers in the
+    the temperature, and COUNT REMAIN and COUNT PER пїЅC registers in the
     scratchpad.  The resolution of the calculation depends on the model.
-    While the COUNT PER °C register is hard-wired to 16 (10h) in a
+    While the COUNT PER пїЅC register is hard-wired to 16 (10h) in a
     DS18S20, it changes with temperature in DS1820.
     After reading the scratchpad, the TEMP_READ value is obtained by
-    truncating the 0.5°C bit (bit 0) from the temperature data. The
+    truncating the 0.5пїЅC bit (bit 0) from the temperature data. The
     extended resolution temperature can then be calculated using the
     following equation:
                                     COUNT_PER_C - COUNT_REMAIN
@@ -1131,15 +1131,15 @@ float ds_getTempC(DS18 *ds)
 {
 	if (!ds) return -1;
 	int16_t newT=ds_getTemp(ds);
-	if  (newT==DEVICE_DISCONNECTED_RAW){ // если ошибка измерения
-		if  (ds->errcount<DS_ERR_LIMIT) {			// и лимит ошибок не превышен
-			ds->errcount++; 				// прибавим счетчик ошибок
-			return ds->Ce;					// и вернем предыдущее измеренное значение
+	if  (newT==DEVICE_DISCONNECTED_RAW){ 		// if incorrect value from the sensor
+		if  (ds->errcount<DS_ERR_LIMIT) {				// check errors limit, if it isn't exeeded
+			ds->errcount++; 										// just add counter of errors
+			return ds->Ce;											// and return the previous correct T
 		}
-		else															// если лимит ошибок превышен
-			return (ds->Ce = rawToCelsius(newT));	// возвращаем Т "как есть"
-	} else  // ошибки нет
-		if (ds->errcount) ds->errcount=0; // сбросим счетчик ошибок
+		else																//if errors limit is exceeded
+			return (ds->Ce = rawToCelsius(newT));		// return new T "as is"
+	} else  																// if T correct, so
+		if (ds->errcount) ds->errcount=0; 					// reset the errors counter to 0
 	ds->Ce = rawToCelsius(newT) + ds->corr;
 	return ds->Ce;
 }
@@ -1227,10 +1227,9 @@ void ds_task(void *arg)
 			ds_getTempC(d);
 			if (DS_ALARM == d->type && d->Ce > d->talert) {
 				// Alarm mode
-				AlarmMode = ALARM_TEMP;
-				if (SavedAlarmMode != AlarmMode) {
+				AlarmMode |= ALARM_TEMP;
+				if (!(SavedAlarmMode|ALARM_TEMP)) {
 					sendSMS("Temperature alarm! power switched off!");
-
 				}
 			} else {
 				AlarmMode &= ~(ALARM_TEMP);

@@ -28,6 +28,7 @@ License (MIT license):
 #include <stdlib.h>
 #include <dirent.h>
 #include <sys/unistd.h>
+#include "sys/stat.h"
 #include <ctype.h>
 #include "esp_platform.h"
 #include "esp_log.h"
@@ -50,6 +51,8 @@ License (MIT license):
 #include "hd_wifi.h"
 #include "hd_main.h"
 #include "ds.h"
+
+#define HTTP_SEND(A,B,C)  do { if (!httpdSend(A,B,C)) ESP_LOGE(__func__,"out of memory in httpdSend()");} while(0)
 
 char ha1[34];
 typedef struct {
@@ -432,7 +435,7 @@ int httpIndex(HttpdConnData *connData)
 	return HTTPD_CGI_DONE;
 }
 
-/* Âûäà÷à/ñîõðàíåíèå ñåòåâûõ ïàðàìåòðâ */
+/* Ã‚Ã»Ã¤Ã Ã·Ã /Ã±Ã®ÃµÃ°Ã Ã­Ã¥Ã­Ã¨Ã¥ Ã±Ã¥Ã²Ã¥Ã¢Ã»Ãµ Ã¯Ã Ã°Ã Ã¬Ã¥Ã²Ã°Ã¢ */
 int httpNetSetup(HttpdConnData *connData)
 {
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;
@@ -480,7 +483,7 @@ int httpNetSetup(HttpdConnData *connData)
 }
 
 
-/* Ñáðîñ ïàðàìåòðîâ â çíà÷åíèå ïî óìîë÷àíèþ */
+/* Ã‘Ã¡Ã°Ã®Ã± Ã¯Ã Ã°Ã Ã¬Ã¥Ã²Ã°Ã®Ã¢ Ã¢ Ã§Ã­Ã Ã·Ã¥Ã­Ã¨Ã¥ Ã¯Ã® Ã³Ã¬Ã®Ã«Ã·Ã Ã­Ã¨Ã¾ */
 int httpParamDefault(HttpdConnData *connData)
 {
 	if (connData->conn==NULL) return HTTPD_CGI_DONE;
@@ -620,7 +623,7 @@ int httpKlpStatus(HttpdConnData *connData)
 			cJSON_AddItemToObject(ja, "is_pwm", cJSON_CreateNumber(Klp[i].is_pwm));
 			cJSON_AddItemToObject(ja, "is_open", cJSON_CreateNumber(Klp[i].is_open));
 			cJSON_AddItemToObject(ja, "pwm_time", cJSON_CreateNumber(pwm));
-			cJSON_AddItemToObject(ja, "pwm_percent", cJSON_CreateNumber(pwm_percent));
+			cJSON_AddItemToObject(ja, "pwm_percent", cJSON_CreateNumber((int)(pwm_percent+0.5)));
 			cJSON_AddItemToObject(ja, "err", cJSON_CreateNumber(0));
 			cJSON_AddItemToObject(ja, "msg", cJSON_CreateString("OK"));
 		}

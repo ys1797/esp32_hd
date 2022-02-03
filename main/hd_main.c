@@ -89,6 +89,9 @@ unsigned char ds1820_devices;                  // Количество датч�
 // клапана
 unsigned char klp_gpio[4] =  {26, 27, 32, 33};
 klp_list Klp[MAX_KLP];		// Список клапанов.
+xQueueHandle valve_cmd_queue; // очередь команд клапанов
+void valveCMDtask(void *arg);
+void cmd2valve (int valve_num, valve_cmd_t cmd);
 
 /* Время */
 time_t CurrentTime;
@@ -141,6 +144,11 @@ autopwm autoPWM[COUNT_PWM] = {
 	{0,0}
 };
 
+#ifdef DEBUG
+TickType_t xOpenTime=0,xCloseTime=0;
+#endif
+
+
 int16_t rect_timer1=0;		// Таймер для отсчета секунд 1
 int16_t timer_sec2=0;		// Таймер для отсчета секунд 2
 int16_t timer_sec3=0;		// Таймер для отсчета секунд 3
@@ -161,6 +169,14 @@ void myBeep(bool lng)
 	gpio_set_level(GPIO_BEEP, 1);	
 }
 
+void shortBeep(void)
+{
+	if (beepActive) return;
+	beeperTime = 150;
+	beepActive = true;
+	gpio_set_level(GPIO_BEEP, 1);
+}
+
 double roundX (double x, int precision)
 {
    int mul = 10;
@@ -175,12 +191,58 @@ double roundX (double x, int precision)
 
 extern uint8_t PZEM_Version;	// Device version 3.0 in use ?
 
+void diffOffTask(void *arg){
+	openKlp(klp_diff);
+	vTaskDelay(5000/portTICK_PERIOD_MS);
+	closeKlp(klp_diff);
+	vTaskDelete(NULL);
+}
+
+bool is_diffOffCondition(void){
+	return (	((AlarmMode & ALARM_OVER_POWER)&&(getIntParam(DEFL_PARAMS, "alarmDIFFoffP")))
+			   ||
+			        ((AlarmMode & ALARM_TEMP)&&(getIntParam(DEFL_PARAMS, "alarmDIFFoffT"))));
+}
+
+void alarmControlTask(void *arg){
+	int vDIFFoffDelaySec;
+	TickType_t vDIFFoffTime;
+
+	while(1) {
+		if  ( is_diffOffCondition() )	{
+			vDIFFoffDelaySec = getIntParam(DEFL_PARAMS, "DIFFoffDelay");
+			ESP_LOGE(__func__,"start DIFF-OFF proc. Delay (%d sec)",vDIFFoffDelaySec);
+			if (AlarmMode & ALARM_OVER_POWER)	 	ESP_LOGE(__func__,"			overPower");
+			if (AlarmMode & ALARM_TEMP) 					ESP_LOGE(__func__,"			overTemerature");
+
+			vDIFFoffTime = xTaskGetTickCount () + SEC_TO_TICKS(vDIFFoffDelaySec);
+			while (xTaskGetTickCount ()<vDIFFoffTime) {// задержка выключения диф-автомата
+				shortBeep();
+				vTaskDelay(SEC_TO_TICKS(1));
+			}
+			if (is_diffOffCondition()){ // если ситуация не исправилась
+				ESP_LOGE(__func__,"DIFF turned off");
+				openKlp(klp_diff); 											// подаем напряжение (клапан 4)
+				vTaskDelay(SEC_TO_TICKS(5));
+				closeKlp(klp_diff);											// через 5 сек - снимаем напряжение с клапана
+			}
+		}
+		vTaskDelay(1000/portTICK_PERIOD_MS);
+	}
+	vTaskDelete(NULL);
+}
+
 void pzem_task(void *arg)
 {
+	int16_t maxPower;
+	TickType_t overPowerAlarmTime;
+	bool  flag_overPower=0;
 	float v;
 	int cnt =0;
 
+
 	PZEM_init();
+	maxPower = getIntParam(DEFL_PARAMS, "maxPower");
 
 	while(1) {
 
@@ -214,6 +276,25 @@ void pzem_task(void *arg)
 			cnt = 0;
 			AlarmMode &= ~(ALARM_NOLOAD);
 		}
+
+		//контроль пробития триака
+		if (((CurPower- SetPower)*100L/maxPower)>DELTA_TRIAK_ALARM_PRC){ // лимиты тревоги превышены
+			myBeep(true);
+			if (!flag_overPower){  // первое детектирование
+				overPowerAlarmTime = xTaskGetTickCount () + SEC_TO_TICKS(TRIAK_ALARM_DELAY_SEC);// фиксируем время включения аларма (в тиках)
+				flag_overPower = true;
+			}
+			else {
+				if (xTaskGetTickCount () > overPowerAlarmTime){
+					AlarmMode |= ALARM_OVER_POWER;
+				}
+			}
+		}
+		else { //превышения мощности нет, сбрасываем флаги и бит аларма
+			flag_overPower = false;
+			AlarmMode &= ~ALARM_OVER_POWER;
+		}
+
 
 		if (SetPower <= 0) {
 			Hpoint = HMAX;
@@ -330,6 +411,10 @@ const char *getAlarmModeStr(void)
 		cnt = sizeof(str) - strlen(str);
 		strncat(str,"  Сработал аварийный датчик", cnt);
 	}
+	if (AlarmMode & ALARM_OVER_POWER) {
+		cnt = sizeof(str) - strlen(str);
+		strncat(str,"  ВЫСОКАЯ МОЩНОСТЬ !", cnt);
+	}
 	strcat(str,"</b>");
 	return str;
 }
@@ -359,43 +444,38 @@ const char *getResetReasonStr(void)
 	}
 }
 
-
-xQueueHandle timer_queue;
-
-static void timer_example_evt_task(void *arg)
-{
-	uint32_t evt;
+/* valve program PWM task  (one task for each valve)
+ * @*arg is (int valve number)
+ */
+void valvePWMtask(void *arg){
+	int num=(int)arg;
+	TickType_t xLastWakeTime=xTaskGetTickCount ();
+	DBG("======started v:%d",num);
 	while(1) {
-		xQueueReceive(timer_queue, &evt, portMAX_DELAY);
-		for (int i=0; i<MAX_KLP; i++) {
-			if (!Klp[i].is_pwm) continue;
-			Klp[i].timer_sec++;
+		if (Klp[num].is_pwm) {
+			DBG("pwmON |%04.1f sec|",Klp[num].open_time);
+			if (Klp[num].open_time>0.2) { //if time less 0.2 sec do nothing
+				cmd2valve (num, cmd_open);				//turn-on valve
+				vTaskDelayUntil( &xLastWakeTime, SEC_TO_TICKS(Klp[num].open_time));
+			}
 
-			if (Klp[i].is_open) {
-				// Текущее состояние - клапан открыт
-				if (Klp[i].timer_sec > Klp[i].open_time) {
-					// Время открытия клапана истекло
-					if (Klp[i].close_time <= 0) continue;
-					ESP_LOGI(TAG, "PWM klp %d -> close", i);
-					// Закрываем клапан
-					valve_off(i);
-				}
-			} else {
-				// Текущее состояние - клапан закрыт
-				if (Klp[i].timer_sec > Klp[i].close_time) {
-					// Пора открывать клапан
-					if (Klp[i].open_time <= 0) continue;
-					ESP_LOGI(TAG, "PWM klp %d -> open", i);
-					// Открываем клапан
-					valve_on(i);					
+			if (Klp[num].is_pwm){
+				DBG("pwmOFF|%04.1f sec|",Klp[num].close_time);
+				if (Klp[num].close_time>0.2) { //if time less 0.2 sec do nothing
+					cmd2valve (num, cmd_close); //turn-off valve
+					vTaskDelayUntil( &xLastWakeTime, SEC_TO_TICKS(Klp[num].close_time));
 				}
 			}
 		}
+
+		if (!Klp[num].is_pwm)	{  // if no pwm
+			DBG("suspend v:%d",num);
+			vTaskSuspend(NULL);	// stop the task (it will be resumed when pwm is turn-on in func startKlpPwm() )
+			DBG("resume  v:%d",num);
+			xLastWakeTime = xTaskGetTickCount ();
+		}
 	}
-
 }
-	
-
 
 
 void IRAM_ATTR timer0_group0_isr(void *para)
@@ -434,7 +514,7 @@ void IRAM_ATTR timer0_group0_isr(void *para)
 			else timer_sec3=0;
 			CurFreq = gpio_counter;
 			gpio_counter=0;
-			xQueueSendFromISR(timer_queue, &intr_status, NULL);
+			//xQueueSendFromISR(timer_queue, &intr_status, NULL);
 		}
 
 	}
@@ -449,7 +529,7 @@ static void tg0_timer0_init()
 	int timer_idx = TIMER_1;
 	timer_config_t config;
 
-	timer_queue = xQueueCreate(10, sizeof(uint32_t));
+	//timer_queue = xQueueCreate(10, sizeof(uint32_t));
 
 	config.alarm_en = true;
 	config.auto_reload = 1;
@@ -478,7 +558,7 @@ static void tg0_timer0_init()
     /* Запускаем отсчет таймера */
     timer_start(timer_group, timer_idx);
 
-    xTaskCreate(timer_example_evt_task, "timer_evt_task", 8192, NULL, 5, NULL);
+    xTaskCreate(valvePWMtask, "valvePWMtask", 8192, NULL, 5, NULL);
 }
 
 // ISR triggered by GPIO edge at the end of each Alternating Current half-cycle.
@@ -559,7 +639,7 @@ int paramSetup(void)
 		nvs_get_i16(nvsHandle, "ProcChimSR", &ProcChimSR);
 	}
 
-	// Загрузка параметров 
+	// Загрузка параметров
 	if (param_load(DEFL_PARAMS, RECT_CONFIGURATION) < 0) {
 		// Файл не найден - заполняем значениями по умолчанию
 		return param_default(DEFL_PARAMS, RECT_CONFIGURATION);
@@ -617,7 +697,7 @@ cJSON* getInformation(void)
 		cJSON_AddItemToObject(jt, "descr", cJSON_CreateString(d->description?d->description:""));
 		cJSON_AddItemToObject(jt, "type_str", cJSON_CreateString(getDsTypeStr(d->type)));
 		cJSON_AddItemToObject(jt, "type", cJSON_CreateNumber(d->type));
-		snprintf(data, sizeof(data)-1, "%02.1f", d->Ce);
+		snprintf(data, sizeof(data)-1, "%02.2f", d->Ce);
 		cJSON_AddItemToObject(jt, "temp", cJSON_CreateString(data));
 
 	}
@@ -637,8 +717,8 @@ cJSON* getInformation(void)
 		cJSON_AddItemToObject(jt, "id", cJSON_CreateNumber(i));
 		cJSON_AddItemToObject(jt, "is_pwm", cJSON_CreateNumber(Klp[i].is_pwm));
 		cJSON_AddItemToObject(jt, "is_open", cJSON_CreateNumber(Klp[i].is_open));
-		cJSON_AddItemToObject(jt, "pwm_time", cJSON_CreateNumber(pwm));
-		cJSON_AddItemToObject(jt, "pwm_percent", cJSON_CreateNumber(pwm_percent));
+		cJSON_AddItemToObject(jt, "pwm_time", cJSON_CreateNumber((int)pwm));
+		cJSON_AddItemToObject(jt, "pwm_percent", cJSON_CreateNumber((int)(pwm_percent+0.5)));
 	}
 
 	if (MODE_RECTIFICATION == MainMode) {
@@ -888,7 +968,7 @@ void setStatus(int next)
 				setNewMainStatus(PROC_SR);
 			} else if (MainStatus == PROC_SR) {
 				closeKlp(klp_sr); // Отключение клапана продукта
-				// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов 
+				// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов
 				start_valve_PWMpercent(klp_glwhq,
 						getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
 						100);
@@ -905,7 +985,7 @@ void setStatus(int next)
 			}
 		} else {
 			if (MainStatus == PROC_RAZGON) {
-				// Из разгона в режим ожидания запуска 
+				// Из разгона в режим ожидания запуска
 				setPower(0);		// Снятие мощности с тэна
 				closeAllKlp();		// Закрытие всех клапанов.
         			setNewMainStatus(START_WAIT);
@@ -924,7 +1004,7 @@ void setStatus(int next)
 			} else if (MainStatus == PROC_WAITEND) {
 				// Переходим к отбору хвостов
 				setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
-				closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта 
+				closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта
 				// Устанавливаем 90% медленный ШИМ клапан отбора хвостов и голов
 				start_valve_PWMpercent(klp_glwhq,
 						getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
@@ -1087,7 +1167,7 @@ void Rectification(void)
 		if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
 		secTempPrev = uptime_counter;
 		setPower(getIntParam(DEFL_PARAMS, "powerRect"));	// Устанавливаем мощность ректификации
-		closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта 
+		closeKlp(klp_sr);	// Отключение клапана отбора товарного продукта
 		// Устанавливаем медленный ШИМ клапан отбора хвостов и голов в соответвии с установками
 		start_valve_PWMpercent(klp_glwhq,
 			getFloatParam(DEFL_PARAMS, "timeChimRectOtbGlv"),
@@ -1152,7 +1232,7 @@ void Rectification(void)
 
 		// Реализуется отбор по-шпоре, что в функции прописано то и будет возвращено.
 		setNewProcChimSR(GetSrPWM());
-		closeKlp(klp_glwhq); // Отключение клапана отбора голов/хвостов 
+		closeKlp(klp_glwhq); // Отключение клапана отбора голов/хвостов
 		// Устанавливаем медленный ШИМ клапана продукта
 		start_valve_PWMpercent
 		  ( klp_sr, // клапан продукта
@@ -1285,6 +1365,9 @@ void Rectification(void)
 
 	case PROC_END:
 		// Окончание работы
+		if (getIntParam(DEFL_PARAMS, "DIFFoffOnStop")) {
+			xTaskCreate(&diffOffTask, "diff Off task", 4096, NULL, 1, NULL); // выключаем дифф
+		}
 		break;
 	}
 }
@@ -1349,29 +1432,35 @@ void Distillation(void)
 		closeAllKlp();		// Закрытие всех клапанов.
 		sprintf(b, "Distillation complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
 		sendSMS(b);
+		if (getIntParam(DEFL_PARAMS, "DIFFoffOnStop")) {
+			xTaskCreate(&diffOffTask, "diff Off task", 4096, NULL, 1, NULL); // выключаем дифф
+		}
 		break;
 	}
 }
 
+
 /*
- * выключение клапана без сброса �Ш�М
- * @param valve_num - номер клапана
+ * send command (ON/OFF) to valvePWMtask
  */
-void valve_off(int valve_num){
+void cmd2valve (int valve_num, valve_cmd_t cmd){
+	static valveCMDmessage_t cmd_message;
+	DBG("v:%d cmd:%d",valve_num, cmd);
 	if (valve_num>=MAX_KLP) {
-		ESP_LOGE("valve_OFF", "incorrect valve num %d", valve_num);
+		ESP_LOGE(__func__, "incorrect valve num %d", valve_num);
 		return;
 	}
-	ledc_channel_t ch = Klp[valve_num].channel;
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 0);
-	ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
-	LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 0;
-	Klp[valve_num].is_open = false;
-	Klp[valve_num].timer_sec = 0;
-	//ESP_LOGI(TAG, "valve %d OFF", valve_num);
+	if (valve_cmd_queue){
+		cmd_message.cmd = cmd;
+		cmd_message.valve_num=valve_num;
+		if (xQueueSend( valve_cmd_queue, ( void * ) &cmd_message, ( TickType_t ) 10 )!= pdPASS){
+			ESP_LOGE(__func__,"timeout of cmd sending");
+		}
+	}
+	else {
+		ESP_LOGE(__func__,"CMD queue doesn't exist");
+	}
 }
-
-
 
 /*
  * Закрытие всех клапанов.
@@ -1382,73 +1471,20 @@ void closeAllKlp(void)
 }
 
 /*
- * задача включения клапана, номер клапана в аргументе *arg как *int
- * Самоудаляется после отработки
- * Включает клапан
- * -для снижения тока и нагрева клапана:
- * после включения и выдерживания паузы на механическое включение
- * ток клапана снижается переводом на %PWM
- *
- * @*arg - *int номера клапана (!!! д.быть static !!!)
- */
-static void valve_open_task(void *arg){
-	int valve_num=*(int*)arg;
-	if (valve_num >=MAX_KLP)
-		vTaskDelete(NULL);
-
-	ledc_channel_t ch = Klp[valve_num].channel;
-	LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 1;
-	if (getIntParam(DEFL_PARAMS,"klpSilentNode")) {
-		ledc_set_fade_with_time(LEDC_HIGH_SPEED_MODE, ch, VALVE_DUTY, VALVE_ON_FADE_TIME_MS);
-		ledc_fade_start(LEDC_HIGH_SPEED_MODE, ch, LEDC_FADE_NO_WAIT);
-		vTaskDelay(VALVE_ON_FADE_TIME_MS/portTICK_PERIOD_MS);
-	} else {
-		ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, VALVE_DUTY);
-		ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
-	}
-#define KEEP_KLP_PWM 30  // процент ШИМ удержания 
-#define KEEP_KLP_DELAY_MS 150  // задержка перевода в ШИМ удержания после включения, мс 
-	//ESP_LOGI("keep_valve", "valve %d prc:%d delay:%d", valve_num,getIntDEFparam("vlvKeepPWM"),getIntDEFparam("vlvDelayLowPWM"));
-	// ждем пока механика клапана включится 
-	vTaskDelay(KEEP_KLP_DELAY_MS/portTICK_PERIOD_MS);
-	// снижаем ток
-	ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, ((VALVE_DUTY*KEEP_KLP_PWM))/100ul);
-	ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
-	vTaskDelete(NULL);
-}
-
-
-/*
- * Открытие клапана
- * @param valve_num - номер клапана
- */
-void valve_on(int valve_num){
-	if (valve_num>=MAX_KLP) return;
-static int num;
-	num=valve_num;
-	//---запускаем задачу открытия клапана 
-	xTaskCreate(valve_open_task, "valve_open", 4096, (void *)&num, 5, NULL);
-	Klp[valve_num].is_open = true;
-	Klp[valve_num].timer_sec = 0;
-	//ESP_LOGI(TAG, "valve %d ON", valve_num);
-}
-
-
-/*
- * Открытие клапана воды
+ * Открытие клапана с выключением программного ШИМ
  */
 void openKlp(int i)
 {
-	valve_on(i);
+	cmd2valve(i, cmd_open);
 	Klp[i].is_pwm = false;
 }
 
 /*
- * Закрытие клапана с выключением ШИМ 
+ * Закрытие клапана с выключением программного ШИМ
  */
 void closeKlp(int i)
 {
-	valve_off(i);
+	cmd2valve (i, cmd_close);
 	Klp[i].is_pwm = false;
 }
 
@@ -1458,12 +1494,17 @@ void closeKlp(int i)
 void startKlpPwm(int i, float topen, float tclose)
 {
 	if (i>=MAX_KLP) return;
-	ESP_LOGI(TAG, "PWM klp %d %f/%f", i, topen, tclose);
+	ESP_LOGI(TAG, "PWM klp %d %04.1f/%04.1f", i, topen, tclose);
 	Klp[i].open_time = topen;	// Время в течении которого клапан открыт
 	Klp[i].close_time = tclose;	// Время в течении которого клапан закрыт
-	Klp[i].timer_sec = 0;	// Начальное состояние - клапан закрыт
-	Klp[i].is_open = false;
 	Klp[i].is_pwm = true;	// Запускаем медленный Шим режим
+
+	if (! Klp[i].pwm_task_Handle){
+		xTaskCreate(valvePWMtask, "valvePWMtask", 8192, (void *)i, 5, &Klp[i].pwm_task_Handle);	//запускаем задачу программного ШИМ клапана
+		vTaskDelay( 100/portTICK_PERIOD_MS );
+	}
+	else
+		vTaskResume( Klp[i].pwm_task_Handle);
 }
 
 /* Запуск программного ШИМ с параметрами
@@ -1472,10 +1513,10 @@ void startKlpPwm(int i, float topen, float tclose)
 * @процент времени открытия
 */
 void start_valve_PWMpercent(int valve_num, int period_sec, int percent_open){
-	int topened= (period_sec*percent_open+50)/100l;
-	int tclosed= period_sec-topened;
+	float topened= (period_sec*percent_open+50)/100l;
+	float tclosed= period_sec-topened;
 	if ((topened < 0)||(topened<0)||(period_sec==0)){
-		ESP_LOGE("startPWN", "incorrect param,period %d open %d close %d", period_sec, topened, tclosed);
+		ESP_LOGE("startPWN", "incorrect param,period %d open %05.2f close %05.2f", period_sec, topened, tclosed);
 		return;
 	}
 	startKlpPwm(valve_num, topened, tclosed);
@@ -1689,7 +1730,7 @@ void app_main(void)
 	/* Чтение настроек */
 	paramSetup();
 
-	/* Поиск и настройка датиков темпервтуры и периодический опрос их */
+	/* Поиск и настройка датиков температуры и периодический опрос их */
 	xTaskCreate(&ds_task, "ds_task", 4096, NULL, 1, NULL);
 
 	/* Инициализация датчика давления bmp 180 */
@@ -1769,11 +1810,25 @@ void app_main(void)
 		};
 		Klp[i].is_open = false;
 		Klp[i].channel = i+1;
+		Klp[i].pwm_task_Handle=NULL;
 		ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 		LEDC.channel_group[0].channel[i+1].conf0.sig_out_en = 0;
 	}
 	ledc_fade_func_install(0);
 
+	valve_cmd_queue = xQueueCreate(10, sizeof(valveCMDmessage_t));			//---очередь команд открытия/закрытия клапанов
+	if (! valve_cmd_queue){
+		ESP_LOGE(__func__,"error of QUEUE creating!");
+	}
+	else {
+		xTaskCreate(valveCMDtask, "valveCMDtask", 8192, NULL, 5, NULL);	//---задача включения/выключения клапанов по командам
+	}
+
+	/* задача контроля флагов тревоги и выключения дифф-автомата*/
+	xTaskCreate(&alarmControlTask, "alarmControl", 4096, NULL, 1, NULL);
+	if (getIntParam(DEFL_PARAMS, "DIFFoffOnStart")) {// при настройке "выключать дифф при старте"
+		xTaskCreate(&diffOffTask, "diff Off task", 4096, NULL, 1, NULL); // выключаем дифф
+	}
 
 	ESP_ERROR_CHECK(gpio_intr_enable(GPIO_DETECT_ZERO));
 	ESP_LOGI(TAG, "Enabled zero crossing interrupt.\n");
@@ -1796,3 +1851,73 @@ void app_main(void)
 	}
 }
 
+void valveCMDtask(void *arg){
+	valveCMDmessage_t qcmd;
+	ledc_channel_t ch;
+	TickType_t xLastWakeTime=0, prevValveSwitch=0;
+
+	while (1){
+		if (xQueueReceive(valve_cmd_queue, &qcmd, portMAX_DELAY)!=pdTRUE) // ждем события на открытие/закрытие клапана
+			continue;																									// если таймаут - повторим
+		ch = Klp[qcmd.valve_num].channel;															// ledc-канал  клапана
+		LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 1;
+		DBG("v:%d(ch:%d) cmd:%d",qcmd.valve_num,ch,qcmd.cmd);
+		switch (qcmd.cmd) {
+			case cmd_open:
+				if (! Klp[qcmd.valve_num].is_open) { // если клапан закрыт то открываем
+					// -------логика "тихого" включения
+					if (getIntParam(DEFL_PARAMS,"klpSilentNode")) {
+						ledc_set_fade_with_time(LEDC_HIGH_SPEED_MODE, ch, VALVE_DUTY, VALVE_ON_FADE_TIME_MS);
+						ledc_fade_start(LEDC_HIGH_SPEED_MODE, ch, LEDC_FADE_NO_WAIT);
+						vTaskDelay(VALVE_ON_FADE_TIME_MS/portTICK_PERIOD_MS);
+					} else {
+						ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, VALVE_DUTY);
+						ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
+					}
+					xLastWakeTime = xTaskGetTickCount ();// системное время включения, в тиках
+	#ifdef DEBUG
+					DBG(" ON:%d(%d ms)",qcmd.valve_num, (xLastWakeTime-prevValveSwitch)*portTICK_PERIOD_MS );
+					prevValveSwitch=xLastWakeTime;
+	#endif
+					Klp[qcmd.valve_num].is_open = true;
+					// ---------логика снижения ШИМ клапана после его включения---------
+					if ((qcmd.valve_num == klp_water)||((qcmd.valve_num == klp_diff))) break; 	//если вода или дифф - не снижаем
+
+					if ((KEEP_KLP_PWM==0)||(KEEP_KLP_PWM==100)) break;								// если настройка ШИМ удержания 0 или 100 - не снижаем
+					if (	(Klp[qcmd.valve_num].is_pwm)																//если клапан в ШИМ
+							&&																										//и время открытого его состояния
+							(KEEP_KLP_DELAY_MS >= (Klp[qcmd.valve_num].open_time*1000))			//меньше времени задержки до перехода на удержание
+						)	{																											// то не снижаем
+						break;
+					}
+
+					vTaskDelayUntil( &xLastWakeTime, KEEP_KLP_DELAY_MS/portTICK_PERIOD_MS );//ждем включения механики клапана
+					ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, ((VALVE_DUTY*KEEP_KLP_PWM)/100ul));
+					ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
+				}
+				else {
+					DBG("ON ignored");
+				}
+				break;
+
+			case cmd_close:
+				if (Klp[qcmd.valve_num].is_open){ // закрываем если открыт
+#ifdef DEBUG
+					xLastWakeTime = xTaskGetTickCount ();
+					DBG("OFF:%d(%d ms)", qcmd.valve_num, (xLastWakeTime-prevValveSwitch)*portTICK_PERIOD_MS);
+					prevValveSwitch =xLastWakeTime;
+#endif
+					ledc_set_duty(LEDC_HIGH_SPEED_MODE, ch, 0);
+					ledc_update_duty(LEDC_HIGH_SPEED_MODE, ch);
+					LEDC.channel_group[0].channel[ch].conf0.sig_out_en = 0;
+					Klp[qcmd.valve_num].is_open = false;
+				}
+				else {
+					DBG("cmd close ignored");
+				}
+				break;
+			default:
+				break;
+		}
+	}
+}

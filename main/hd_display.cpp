@@ -37,6 +37,7 @@ License (MIT license):
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"
 
+
 /* I2C address */
 #ifndef DISPLAY_I2C_ADDR
 #define DISPLAY_I2C_ADDR         0x3C//0x78
@@ -53,7 +54,6 @@ int clockRadius = 23;
 
 extern volatile uint32_t uptime_counter;
 extern volatile int32_t Hpoint;
-
 
 /*
  * Функция вывода информации на первый экран
@@ -75,24 +75,20 @@ void mainFrame(OLEDDisplayUiState* state, int16_t x, int16_t y)
 
 void addressFrame(OLEDDisplayUiState* state, int16_t x, int16_t y)
 {
-	wifi_mode_t mode;
-	tcpip_adapter_if_t ifx = TCPIP_ADAPTER_IF_AP;
-	tcpip_adapter_ip_info_t ip;
+	esp_netif_t *net_instance = getNetHandle();
+	esp_netif_ip_info_t ip_info;
 	char b[255];
 
 	oledSetTextAlignment(TEXT_ALIGN_LEFT);
 	oledSetFont(ArialMT_Plain_10);
 
-	esp_wifi_get_mode(&mode);
-	if (WIFI_MODE_STA == mode) ifx = TCPIP_ADAPTER_IF_STA;
-
-	memset(&ip, 0, sizeof(tcpip_adapter_ip_info_t));
-	if (tcpip_adapter_get_ip_info(ifx, &ip) == 0) {
-		sprintf(b, "IP:" IPSTR, IP2STR(&ip.ip));
+	if (esp_netif_get_ip_info(net_instance, &ip_info) == ESP_OK)
+	{
+		sprintf(b, "IP:" IPSTR, IP2STR(&ip_info.ip));
 		oledDrawString(x , 13 + y, b);
-		sprintf(b, "MASK:" IPSTR, IP2STR(&ip.netmask));
+		sprintf(b, "MASK:" IPSTR, IP2STR(&ip_info.netmask));
 		oledDrawString(x , 24 + y, b);
-		sprintf(b, "GW:" IPSTR, IP2STR(&ip.gw));
+		sprintf(b, "GW:" IPSTR, IP2STR(&ip_info.gw));
 		oledDrawString(x , 35 + y, b);
 	}
 	sprintf(b, "Uptime: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);

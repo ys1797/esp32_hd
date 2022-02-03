@@ -28,12 +28,13 @@ License (MIT license):
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <cJSON.h>
 
 #include "esp_log.h"
 #include "config.h"
 
-/* Сетевые параметры */
+/* Г‘ГҐГІГҐГўГ»ГҐ ГЇГ Г°Г Г¬ГҐГІГ°Г» */
 vaiable_list NET_PARAMS[] =
 {
 	{"host",		VARIABLE_STRING, 0,	0,	DEFAULT_HOST,	NULL},
@@ -45,26 +46,27 @@ vaiable_list NET_PARAMS[] =
 	{"smscPhones",		VARIABLE_STRING, 0,	0,	"",		NULL},
 	{"useSmsc", 		VARIABLE_INT,	 0,	2,      "0",		NULL},
 	{"wsPeriod", 		VARIABLE_INT,	 0, 	60,	"5",		NULL},
+	{"timezone", 		VARIABLE_INT,	 -12,  12,	"3",		NULL},
 	{"dispType", 		VARIABLE_INT,	 -1, 	10,	"0",		NULL},
 	{NULL}
 };
 
 
-/* Параметры устройства */
+/* ГЏГ Г°Г Г¬ГҐГІГ°Г» ГіГ±ГІГ°Г®Г©Г±ГІГўГ  */
 vaiable_list DEFL_PARAMS[] =
 {
 	{"maxPower",		VARIABLE_INT,	0,	15000,	"2000",	NULL},
 	{"ustPowerReg",		VARIABLE_INT,	0,	15000,	"900",	NULL},
 	{"tempEndRectRazgon",	VARIABLE_FLOAT, 0,	120,	"83.0",	NULL},
 	{"powerRect",		VARIABLE_INT,	0,	15000,	"1000",	NULL},
-	{"tEndRectOtbGlv",	VARIABLE_FLOAT, -9999,	120,	"85.4",	NULL},   //отрицательное значение: время отбора голов в минутах
+	{"tEndRectOtbGlv",	VARIABLE_FLOAT, -9999,	120,	"85.4",	NULL},   //Г®ГІГ°ГЁГ¶Г ГІГҐГ«ГјГ­Г®ГҐ Г§Г­Г Г·ГҐГ­ГЁГҐ: ГўГ°ГҐГ¬Гї Г®ГІГЎГ®Г°Г  ГЈГ®Г«Г®Гў Гў Г¬ГЁГ­ГіГІГ Гµ
 	{"timeChimRectOtbGlv",	VARIABLE_INT,	0,	10000,	"20",	 NULL},
 	{"procChimOtbGlv",	VARIABLE_INT,	0,	101,	"5",	NULL},
 	{"minProcChimOtbSR",	VARIABLE_INT,	0,	101,	"20",	NULL},
 	{"beginProcChimOtbSR",	VARIABLE_INT,	0,	100,	"40",	NULL},
 	{"timeChimRectOtbSR",	VARIABLE_INT,	0,	1500,	"10",	NULL},
 	{"tempDeltaRect",	VARIABLE_FLOAT, 0,	120,	"0.3",	NULL},
-	{"tempEndRectOtbSR",	VARIABLE_FLOAT, -120,	120,	"96.5", NULL}, // отрицательное значение: ТTube20, положительное: T куба
+	{"tempEndRectOtbSR",	VARIABLE_FLOAT, -120,	120,	"96.5", NULL}, // Г®ГІГ°ГЁГ¶Г ГІГҐГ«ГјГ­Г®ГҐ Г§Г­Г Г·ГҐГ­ГЁГҐ: Г’Tube20, ГЇГ®Г«Г®Г¦ГЁГІГҐГ«ГјГ­Г®ГҐ: T ГЄГіГЎГ 
 	{"tempEndRect",		VARIABLE_FLOAT, 0,	120,	"99.5", NULL},
 	{"p_MPX5010",		VARIABLE_INT,	0,	100,	"0",	NULL},
 	{"timeStabKolonna",	VARIABLE_INT,	0,	3500,	"900",	NULL},
@@ -72,8 +74,8 @@ vaiable_list DEFL_PARAMS[] =
 	{"klpSilentNode", 	VARIABLE_CHECKBOX, 0,	1,	"1",	NULL},
 	{"urovenProvodimostSR", VARIABLE_INT,	0,	1000,	"0",	NULL},
 	{"cntCHIM", 		VARIABLE_INT,	-100,	100,	"-4",	NULL},
-	{"decrementCHIM", 	VARIABLE_INT,	0,	100,	"10",	NULL},
-	{"incrementCHIM", 	VARIABLE_INT,	0,	100,	"5",	NULL},
+	{"decrementCHIM", 	VARIABLE_INT,	-100,	100,	"10",	NULL},
+	{"incrementCHIM", 	VARIABLE_INT,	-100,	100,	"5",	NULL},
 	{"timeAutoIncCHIM", 	VARIABLE_INT,	0,	1000,	"600",	NULL},
 	{"alarmMPX5010", 	VARIABLE_INT,	0,	100,	"0",	NULL},
 	{"beepChangeState", 	VARIABLE_CHECKBOX, 0,	1,	"1",	NULL},
@@ -85,10 +87,16 @@ vaiable_list DEFL_PARAMS[] =
 	{"klp1_isPWM", 		VARIABLE_CHECKBOX, 0,	1,	"0",	NULL},
 	{"pzemVersion", 	VARIABLE_INT,	0,	2,	"0",	NULL},
 	{"useExernalAlarm", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL},
+	//------Г­Г Г±ГІГ°Г®Г©ГЄГЁ ГЈГ°ГіГЇГЇГ» ГЎГҐГ§Г®ГЇГ Г±Г­Г®Г±ГІГЁ
+	{"alarmDIFFoffT", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Г‚Г»ГЄГ«ГѕГ·Г ГІГј Г¤ГЁГґГґ-Г ГўГІГ®Г¬Г ГІ ГЇГ® ГІГ°ГҐГўГ®ГЈГҐ Г’
+	{"alarmDIFFoffP", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Г‚Г»ГЄГ«ГѕГ·Г ГІГј Г¤ГЁГґГґ-Г ГўГІГ®Г¬Г ГІ ГЇГ® ГЇГ°ГҐГўГ»ГёГҐГ­ГЁГѕ Г¬Г®Г№Г­Г®Г±ГІГЁ
+	{"DIFFoffDelay", 	VARIABLE_INT,					0,	600,		  "30",		NULL},//Г§Г Г¤ГҐГ°Г¦ГЄГ  Гў Г±ГҐГЄГіГ­Г¤Г Гµ Г®ГІ Г¬Г®Г¬ГҐГ­ГІГ  Г ГўГ Г°ГЁГЁ Г¤Г® ГўГ»ГЄГ«ГѕГ·ГҐГ­ГЁГї Г¤ГЁГґГґ-Г ГўГІГ®Г¬Г ГІГ 
+	{"DIFFoffOnStart", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Г‚Г»ГЄГ«ГѕГ·Г ГІГј Г¤ГЁГґГґ-Г ГўГІГ®Г¬Г ГІ ГЇГ°ГЁ Г±ГІГ Г°ГІГҐ
+	{"DIFFoffOnStop", 	VARIABLE_CHECKBOX, 0,	1,	"0",	NULL}, //Г‚Г»ГЄГ«ГѕГ·Г ГІГј Г¤ГЁГґГґ-Г ГўГІГ®Г¬Г ГІ ГЇГ°ГЁ Г§Г ГўГҐГ°ГёГҐГ­ГЁГЁ
 	{NULL}
 };
 
-/* Сброс параметров в значение по умолчанию */
+/* Г‘ГЎГ°Г®Г± ГЇГ Г°Г Г¬ГҐГІГ°Г®Гў Гў Г§Г­Г Г·ГҐГ­ГЁГҐ ГЇГ® ГіГ¬Г®Г«Г·Г Г­ГЁГѕ */
 int param_default(vaiable_list list[], const char *finename)
 {
 	FILE *f = fopen(finename, "w");
@@ -127,7 +135,7 @@ int param_default(vaiable_list list[], const char *finename)
 	return 0;
 }
 
-/* Загрузка и установка параметров работы */
+/* Г‡Г ГЈГ°ГіГ§ГЄГ  ГЁ ГіГ±ГІГ Г­Г®ГўГЄГ  ГЇГ Г°Г Г¬ГҐГІГ°Г®Гў Г°Г ГЎГ®ГІГ» */
 int param_load(vaiable_list list[], const char *finename)
 {
 	struct stat st;
@@ -141,7 +149,7 @@ int param_load(vaiable_list list[], const char *finename)
 	int save_param = 0;	// flag - save parameters
 
        	if (stat(finename, &st) != 0) {
-		// Файл не найден - заполняем значениями по умолчанию
+		// Г”Г Г©Г« Г­ГҐ Г­Г Г©Г¤ГҐГ­ - Г§Г ГЇГ®Г«Г­ГїГҐГ¬ Г§Г­Г Г·ГҐГ­ГЁГїГ¬ГЁ ГЇГ® ГіГ¬Г®Г«Г·Г Г­ГЁГѕ
 		return param_default(list, finename);
 	}
 	f = fopen(finename, "r");
@@ -214,7 +222,7 @@ int param_load(vaiable_list list[], const char *finename)
 	return 0;
 }
 
-/* Сохранение параметров работы */
+/* Г‘Г®ГµГ°Г Г­ГҐГ­ГЁГҐ ГЇГ Г°Г Г¬ГҐГІГ°Г®Гў Г°Г ГЎГ®ГІГ» */
 int param_save(vaiable_list list[], const char *finename)
 {
 	vaiable_list *v;
@@ -239,7 +247,7 @@ int param_save(vaiable_list list[], const char *finename)
 	return 0;
 }
 
-/* Проверка существования параметра */
+/* ГЏГ°Г®ГўГҐГ°ГЄГ  Г±ГіГ№ГҐГ±ГІГўГ®ГўГ Г­ГЁГї ГЇГ Г°Г Г¬ГҐГІГ°Г  */
 int checkParam(vaiable_list list[], char *name)
 {
 	vaiable_list *v;
@@ -249,7 +257,7 @@ int checkParam(vaiable_list list[], char *name)
 	return 0;
 }
 
-/* Установка  переменной */
+/* Г“Г±ГІГ Г­Г®ГўГЄГ   ГЇГҐГ°ГҐГ¬ГҐГ­Г­Г®Г© */
 int setParam(vaiable_list list[], char *name, char *value)
 {
 	vaiable_list *v;
@@ -287,7 +295,7 @@ int setParam(vaiable_list list[], char *name, char *value)
 }
 
 
-/* Получение текстовой переменной */
+/* ГЏГ®Г«ГіГ·ГҐГ­ГЁГҐ ГІГҐГЄГ±ГІГ®ГўГ®Г© ГЇГҐГ°ГҐГ¬ГҐГ­Г­Г®Г© */
 char *getStringParam(vaiable_list list[], char *name)
 {
 	vaiable_list *v;
@@ -300,7 +308,7 @@ char *getStringParam(vaiable_list list[], char *name)
 	return "";
 }
 
-/* Получение переменной типа int */
+/* ГЏГ®Г«ГіГ·ГҐГ­ГЁГҐ ГЇГҐГ°ГҐГ¬ГҐГ­Г­Г®Г© ГІГЁГЇГ  int */
 int  getIntParam(vaiable_list list[], char *name)
 {
 	vaiable_list *v;
@@ -313,7 +321,7 @@ int  getIntParam(vaiable_list list[], char *name)
 	return 0;
 }
 
-/* Получение переменной типа float*/
+/* ГЏГ®Г«ГіГ·ГҐГ­ГЁГҐ ГЇГҐГ°ГҐГ¬ГҐГ­Г­Г®Г© ГІГЁГЇГ  float*/
 float getFloatParam(vaiable_list list[], char *name)
 {
 	vaiable_list *v;

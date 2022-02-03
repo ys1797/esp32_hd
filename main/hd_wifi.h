@@ -22,6 +22,10 @@ License (MIT license):
 
 #include "esp_wifi.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
 	char ssid[33];		// SSID of AP
 	char password[64];	// Password of ESP32 AP
@@ -39,5 +43,8 @@ int wifi_cmd_ap_set(void);
 int8_t scanWifiNetworks(bool async, bool show_hidden, bool passive, uint32_t max_ms_per_chan);
 const char *wifi_auth_string(wifi_auth_mode_t auth);
 esp_err_t wifiSetup(void); // Настройка wifi
-
+esp_netif_t *getNetHandle(void); // return current esp-netif instance
+#ifdef __cplusplus
+}
+#endif
 

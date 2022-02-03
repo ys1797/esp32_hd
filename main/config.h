@@ -30,6 +30,14 @@ License (MIT license):
 
 #define DEBUG				// debug mode
 
+#ifdef DEBUG
+#define DBGT( tag, format, ... ) ESP_LOGI(tag, format, ##__VA_ARGS__)
+#define DBG( format, ... ) ESP_LOGI(__func__, format, ##__VA_ARGS__)
+#else
+#define DBGT( tag, format, ... )
+#define DBG( format, ... )
+#endif
+
 #define MAX_OBJ_NAME	32
 #define MAX_KLP		4		// Максимальное число клапанов = 4
 
@@ -95,7 +103,7 @@ enum variable_type {
         VARIABLE_CHECKBOX,
         VARIABLE_STRING,
         VARIABLE_INT,
-	VARIABLE_FLOAT
+		VARIABLE_FLOAT
 };
 
 // Определение переменной

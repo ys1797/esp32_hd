@@ -37,7 +37,6 @@ License (MIT license):
 #include "lwip/apps/sntp.h"
 #include <cJSON.h>
 
-#include "captdns.h"
 #include "config.h"
 #include "hd_wifi.h"
 #include "hd_main.h"
@@ -58,6 +57,7 @@ const int DISCONNECTED_BIT = BIT1;
 
 static int retryNum = 0;
 static char is_connected = 0;
+static esp_netif_t* net_instanse_ptr;
 
 
 const char * system_event_reasons[] = { "UNSPECIFIED", "AUTH_EXPIRE", "AUTH_LEAVE", "ASSOC_EXPIRE", "ASSOC_TOOMANY", "NOT_AUTHED", "NOT_ASSOCED", "ASSOC_LEAVE", "ASSOC_NOT_AUTHED", "DISASSOC_PWRCAP_BAD", "DISASSOC_SUPCHAN_BAD", "IE_INVALID", "MIC_FAILURE", "4WAY_HANDSHAKE_TIMEOUT", "GROUP_KEY_UPDATE_TIMEOUT", "IE_IN_4WAY_DIFFERS", "GROUP_CIPHER_INVALID", "PAIRWISE_CIPHER_INVALID", "AKMP_INVALID", "UNSUPP_RSN_IE_VERSION", "INVALID_RSN_IE_CAP", "802_1X_AUTH_FAILED", "CIPHER_SUITE_REJECTED", "BEACON_TIMEOUT", "NO_AP_FOUND", "AUTH_FAIL", "ASSOC_FAIL", "HANDSHAKE_TIMEOUT" };
@@ -77,7 +77,11 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 		ESP_LOGI(TAG, "netmask: " IPSTR, IP2STR(&event->ip_info.netmask));
 		ESP_LOGI(TAG, "gw: " IPSTR, IP2STR(&event->ip_info.gw));
 		ESP_LOGI(TAG, "Initializing SNTP");
-		setenv("TZ", "MSK-3", 1);
+
+		char tz[20];
+		snprintf(tz, 20, "CST-%d", getIntParam(NET_PARAMS, "timezone"));
+		setenv("TZ", tz, 1);
+		tzset();
 		sntp_setoperatingmode(SNTP_OPMODE_POLL);
 		sntp_setservername(0, "pool.ntp.org");
 		sntp_init();
@@ -117,7 +121,11 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 			sntp_stop();
 			ESP_LOGI(TAG, "WiFi disconnect event, resason: %d", event->reason);
 
-			if (!is_connected && WIFI_REASON_NO_AP_FOUND == event->reason) {
+			if ((!is_connected)	&&
+					(	(WIFI_REASON_NO_AP_FOUND == event->reason)||
+						(WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT == event->reason)
+					)
+				) {
 				WIFI_currentAp++;
 				if (WIFI_currentAp< WIFI_knowApCount) {
 					wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
@@ -193,7 +201,7 @@ int8_t scanWifiNetworks(bool async, bool show_hidden, bool passive, uint32_t max
 		WIFI_scanComplete = false;
 		WIFI_scanStarted = true;
 		if (async) return 0;
-		while (!WIFI_scanComplete) ets_delay_us(10000);
+		while (!WIFI_scanComplete) vTaskDelay(100/portTICK_PERIOD_MS);
 		return WIFI_scanCount;
         }
 	return -1;
@@ -268,7 +276,10 @@ int wifi_cmd_ap_set(void)
 			.authmode = WIFI_AUTH_OPEN
 	        },
 	};
-	esp_netif_create_default_wifi_ap();
+	if (net_instanse_ptr!=NULL){
+		esp_wifi_clear_default_wifi_driver_and_handlers(net_instanse_ptr);
+	}
+	net_instanse_ptr = esp_netif_create_default_wifi_ap();
 
 	strlcpy((char*) wifi_config.ap.ssid, Hostname, sizeof(wifi_config.sta.ssid));
 
@@ -287,6 +298,7 @@ int wifi_cmd_ap_set(void)
  */
 esp_err_t wifiSetup(void)
 {
+	net_instanse_ptr = NULL;
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	wifi_event_group = xEventGroupCreate();
 
@@ -310,7 +322,7 @@ esp_err_t wifiSetup(void)
 		wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
 		wifi_config_t wifi_config = { 0 };
 
-		esp_netif_create_default_wifi_sta();
+		net_instanse_ptr = esp_netif_create_default_wifi_sta();
 
 		strlcpy((char*) wifi_config.sta.ssid, w->ssid, sizeof(wifi_config.sta.ssid));
 		if (strlen(w->password)) {
@@ -327,5 +339,6 @@ esp_err_t wifiSetup(void)
 	return ESP_OK;
 }
 
-
-
+esp_netif_t *getNetHandle(void){
+	return net_instanse_ptr;
+}
