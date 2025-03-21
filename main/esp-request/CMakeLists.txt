@@ -4,4 +4,4 @@
 
 idf_component_register(SRCS "esp_request.c" "req_list.c" "uri_parser.c"
                        INCLUDE_DIRS . "include"
-		       REQUIRES openssl spi_flash spiffs fatfs)
+		       REQUIRES spi_flash spiffs fatfs)
