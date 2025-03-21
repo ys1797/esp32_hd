@@ -152,7 +152,7 @@ typedef void (*LoadingDrawFunction)(LoadingStage* stage, uint8_t progress);
  *           - 0: SH1106 was not detected on I2C port
  *           - >0: SH1106 initialized OK and ready to use
  */
-uint8_t Display_Init(uint8_t i2c_addr);
+uint8_t SH1106_Init(uint8_t i2c_addr);
 
 /**
  * @brief  Updates buffer from internal RAM to LCD

@@ -52,13 +52,8 @@ License (MIT license):
 
 
 static i2c_port_t i2c_num;
-static uint8_t sda_pin;
-static uint8_t scl_pin;
 static xSemaphoreHandle i2c_mux;
 char I2C_detect[128];	/* detectecd i2c devices list */
-type_lcd_t lcd_type;	/* detected lcd type on SPI bus */
-
-
 spi_device_handle_t Spi;
 
 /* 
@@ -246,29 +241,10 @@ uint8_t spi_read8(uint8_t commandByte)
 	return *(uint32_t*)t.rx_data;
 }
 
-
-uint32_t lcd_get_id()
-{
-	spi_transaction_t t;
-
-	//get_id cmd
-	spi_cmd(0x04);
-	memset(&t, 0, sizeof(t));
-	t.length=8*3;
-	t.flags = SPI_TRANS_USE_RXDATA;
-	t.user = (void*)1;
-	xSemaphoreTake(i2c_mux, portMAX_DELAY);
-	esp_err_t ret = spi_device_polling_transmit(Spi, &t);
-	xSemaphoreGive(i2c_mux);
-	assert( ret == ESP_OK );
-	return *(uint32_t*)t.rx_data;
-}
-
-
 /*
  * Настройка spi интерфейса
  */
-void spi_setup(void)
+void spi_setup(int t_sz)
 {
 	esp_err_t ret;
 
@@ -291,14 +267,14 @@ void spi_setup(void)
 		.sclk_io_num=SPI_PIN_CLK,
 		.quadwp_io_num=-1,
 		.quadhd_io_num=-1,
-		.max_transfer_sz=PARALLEL_LINES*320*2+8
+		.max_transfer_sz = t_sz,
 	};
 	spi_device_interface_config_t devcfg={
-#ifdef CONFIG_LCD_OVERCLOCK
+//#ifdef CONFIG_LCD_OVERCLOCK
 	      	.clock_speed_hz=26*1000*1000,	// Частота 26 MHz
-#else
-        	.clock_speed_hz=10*1000*1000,	// Частота 10 MHz
-#endif
+//#else
+//        	.clock_speed_hz=10*1000*1000,	// Частота 10 MHz
+//#endif
 		.mode=0,                        //SPI mode 0
 		.spics_io_num=SPI_PIN_CS,	//CS pin
 		.queue_size=7,			//We want to be able to queue 7 transactions at a time
@@ -317,19 +293,6 @@ void spi_setup(void)
 		ESP_LOGW(TAG, "SPI device atach failed!\n");
 		spi_bus_free(VSPI_HOST);
 		return;
-	}
-
-	// detect LCD type
-	uint32_t l = lcd_get_id();
-	ESP_LOGW(TAG, "LCD ID: %08X", l);
-	if (l == 0) {
-		//zero, ili
-		lcd_type = LCD_TYPE_ILI;
-		printf("ILI9341 detected.\n");
-	} else {
-		// none-zero, ST
-		lcd_type = LCD_TYPE_ST;
-		printf("ST7789V detected.\n");
 	}
 	ESP_LOGI(TAG, "SPI initialization complete.");
 }
@@ -406,13 +369,14 @@ void task_i2cscanner(void)
 	esp_err_t espRc;
 	printf("     0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f\n");
 	printf("00:         ");
+
 	for (i=3; i< 0x78; i++) {
-		i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+                i2c_cmd_handle_t cmd = i2c_cmd_link_create();
 		i2c_master_start(cmd);
 		i2c_master_write_byte(cmd, (i << 1) | I2C_MASTER_WRITE, 1 /* expect ack */);
 		i2c_master_stop(cmd);
-
 		espRc = i2c_master_cmd_begin(I2C_MASTER_NUM, cmd, 10/portTICK_PERIOD_MS);
+		i2c_cmd_link_delete(cmd);
 		if (i%16 == 0) {
 			printf("\n%.2x:", i);
 		}
@@ -424,34 +388,28 @@ void task_i2cscanner(void)
 			printf(" --");
 		}
 		//ESP_LOGD(tag, "i=%d, rc=%d (0x%x)", i, espRc, espRc);
-		i2c_cmd_link_delete(cmd);
 	}
 	printf("\n");
 }
 
 
 
-uint8_t I2C_Init(i2c_port_t _num, uint8_t _sda, uint8_t _scl) {
-
-	i2c_config_t conf;
+uint8_t I2C_Init(i2c_port_t _num, uint8_t _sda, uint8_t _scl)
+{
 	i2c_num = _num;
-	sda_pin = _sda;
-	scl_pin = _scl;
-
 	if (!i2c_mux) i2c_mux = xSemaphoreCreateMutex();
 	ESP_ERROR_CHECK(!i2c_mux);
-		
-	conf.mode = I2C_MODE_MASTER;
-	conf.sda_io_num = sda_pin;
-	conf.scl_io_num = scl_pin;
-	conf.sda_pullup_en = GPIO_PULLUP_ENABLE;
-	conf.scl_pullup_en = GPIO_PULLUP_ENABLE;
-	conf.master.clk_speed = I2C_MASTER_FREQ_HZ;
+printf("Install I2C _num: %d sda: %d scl: %d\n", _num, _sda, _scl);
+	i2c_config_t conf = {
+		.mode = I2C_MODE_MASTER,
+		.sda_io_num = _sda,
+		.scl_io_num = _scl,
+		.sda_pullup_en = GPIO_PULLUP_ENABLE,
+		.scl_pullup_en = GPIO_PULLUP_ENABLE,
+		.master.clk_speed = I2C_MASTER_FREQ_HZ,
+	};
 	i2c_param_config(i2c_num, &conf);
-
-	i2c_driver_install(i2c_num, conf.mode,
-		I2C_MASTER_RX_BUF_DISABLE,
-		I2C_MASTER_TX_BUF_DISABLE, 0);
+	i2c_driver_install(i2c_num, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 	printf("I2C installed\n");
 	return 0;
 }

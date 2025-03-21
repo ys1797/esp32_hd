@@ -18,3 +18,4 @@ dependencies:
   espressif/esp_lcd_ili9341: ^1.0
   espressif/ds18b20: ^0.1.2
   wolfssl/wolfssl: ^5.7.6
+  espressif/mbedtls_cxx: ^0.1.0

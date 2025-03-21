@@ -21,16 +21,16 @@ License (MIT license):
 */
 
 #include "esp_wifi.h"
+#define DEFAULT_SCAN_LIST_SIZE (20)
 
 typedef struct {
 	char ssid[33];		// SSID of AP
 	char password[64];	// Password of ESP32 AP
 } wifi_know_ap;
 
+extern esp_netif_t *sta_netif;
 extern uint16_t WIFI_scanCount;
-extern bool WIFI_scanStarted;
-extern bool WIFI_scanComplete;
-extern wifi_ap_record_t *WIFI_scanResult;
+extern wifi_ap_record_t WIFI_scanResult[DEFAULT_SCAN_LIST_SIZE];
 
 /* Получение сохраненной конфигурации WiFi точек */
 int get_wifi_config(void);

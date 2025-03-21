@@ -263,7 +263,7 @@ static void startLoadingScreen(LoadingStage* stage, uint8_t progress) {
 }
 
 
-uint8_t Display_Init(uint8_t i2c_addr) {
+uint8_t SH1106_Init(uint8_t i2c_addr) {
 	/* Fill privete structure */
 	Oled.i2c_address = i2c_addr;
 

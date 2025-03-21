@@ -29,6 +29,9 @@ License (MIT license):
 #include "esp_event.h"
 #include "esp_spiffs.h"
 #include "esp_log.h"
+#include "esp_mac.h"
+#include "esp_netif.h"
+#include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "math.h"
 #include "time.h"
@@ -46,13 +49,18 @@ License (MIT license):
 #define HD_ESP_MAXIMUM_RETRY  30
 
 uint16_t WIFI_scanCount;
-bool WIFI_scanStarted;
-bool WIFI_scanComplete;
-wifi_ap_record_t *WIFI_scanResult;
+wifi_ap_record_t WIFI_scanResult[DEFAULT_SCAN_LIST_SIZE];
+
+
 uint8_t WIFI_knowApCount;		// Количество известных AP
 uint8_t WIFI_currentAp;
 wifi_know_ap *WIFI_knowAp;
+
+/* FreeRTOS event group to signal when we are connected & ready to make a request */
 static EventGroupHandle_t wifi_event_group;
+/* esp netif object representing the WIFI station */
+ esp_netif_t *sta_netif = NULL;
+
 const int CONNECTED_BIT = BIT0;
 const int DISCONNECTED_BIT = BIT1;
 
@@ -84,24 +92,6 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 		fflush(stdout);
 	} else if (event_base == WIFI_EVENT) {
 		switch(event_id) {
-		case SYSTEM_EVENT_SCAN_DONE:
-
-			if (WIFI_scanResult) {
-				free(WIFI_scanResult);
-				WIFI_scanResult = NULL;
-			}
-			esp_wifi_scan_get_ap_num(&WIFI_scanCount);
-			if (WIFI_scanCount) {
-				WIFI_scanResult = calloc(sizeof(wifi_ap_record_t), WIFI_scanCount);
-				if (WIFI_scanResult) {
-					esp_wifi_scan_get_ap_records(&WIFI_scanCount, WIFI_scanResult);
-				} else {
-					WIFI_scanCount = 0;
-				}
-			}
-			WIFI_scanComplete = true;
-			WIFI_scanStarted = false;
-			break;
 		case WIFI_EVENT_STA_START:
 			ESP_LOGI(TAG, "WiFi start event");
 			esp_wifi_connect();
@@ -173,9 +163,8 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 int8_t scanWifiNetworks(bool async, bool show_hidden, bool passive, uint32_t max_ms_per_chan)
 {
 	wifi_scan_config_t config;
-
-	if (WIFI_scanStarted) return -2;
-
+	uint16_t number = DEFAULT_SCAN_LIST_SIZE;
+	memset(WIFI_scanResult, 0, (sizeof(WIFI_scanResult)) );
 	config.ssid = 0;
 	config.bssid = 0;
 	config.channel = 0;
@@ -189,11 +178,13 @@ int8_t scanWifiNetworks(bool async, bool show_hidden, bool passive, uint32_t max
 	        config.scan_time.active.max = max_ms_per_chan;
 	}
 
-	if (esp_wifi_scan_start(&config, false) == ESP_OK) {
-		WIFI_scanComplete = false;
-		WIFI_scanStarted = true;
-		if (async) return 0;
-		while (!WIFI_scanComplete) ets_delay_us(10000);
+	if (esp_wifi_scan_start(&config, true) == ESP_OK) {
+		ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&WIFI_scanCount));
+		ESP_LOGI(TAG, "Total APs scanned = %u", WIFI_scanCount);
+
+		if (WIFI_scanCount) {
+			esp_wifi_scan_get_ap_records(&number, WIFI_scanResult);
+		}
 		return WIFI_scanCount;
         }
 	return -1;
@@ -287,14 +278,16 @@ int wifi_cmd_ap_set(void)
  */
 esp_err_t wifiSetup(void)
 {
-	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+	ESP_ERROR_CHECK(esp_netif_init());
 	wifi_event_group = xEventGroupCreate();
+	ESP_ERROR_CHECK(esp_event_loop_create_default());
+	sta_netif = esp_netif_create_default_wifi_sta();
+
+	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
 	/* Получение конфигурации wifi */
 	get_wifi_config();
 
-	ESP_ERROR_CHECK(esp_netif_init());
-	ESP_ERROR_CHECK(esp_event_loop_create_default());
 
 	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
 	ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
@@ -302,15 +295,12 @@ esp_err_t wifiSetup(void)
 	ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
 	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
 
-
 	if (!WIFI_knowApCount) {
 		// Нет заданных точек доступа - переходим в режим AP
 		wifi_cmd_ap_set();
 	} else {
 		wifi_know_ap *w = &WIFI_knowAp[WIFI_currentAp];
 		wifi_config_t wifi_config = { 0 };
-
-		esp_netif_create_default_wifi_sta();
 
 		strlcpy((char*) wifi_config.sta.ssid, w->ssid, sizeof(wifi_config.sta.ssid));
 		if (strlen(w->password)) {
