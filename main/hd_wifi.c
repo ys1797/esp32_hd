@@ -37,7 +37,9 @@ License (MIT license):
 #include "time.h"
 #include <string.h>
 #include <sys/types.h>
-#include "lwip/apps/sntp.h"
+#include "lwip/err.h"
+#include "lwip/sys.h"
+#include "lwip/ip_addr.h"
 #include <cJSON.h>
 
 #include "captdns.h"
@@ -84,11 +86,6 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 		ESP_LOGI(TAG, "got ip: " IPSTR, IP2STR(&event->ip_info.ip));
 		ESP_LOGI(TAG, "netmask: " IPSTR, IP2STR(&event->ip_info.netmask));
 		ESP_LOGI(TAG, "gw: " IPSTR, IP2STR(&event->ip_info.gw));
-		ESP_LOGI(TAG, "Initializing SNTP");
-		setenv("TZ", "MSK-3", 1);
-		sntp_setoperatingmode(SNTP_OPMODE_POLL);
-		sntp_setservername(0, "pool.ntp.org");
-		sntp_init();
 		fflush(stdout);
 	} else if (event_base == WIFI_EVENT) {
 		switch(event_id) {
@@ -104,7 +101,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 			   auto-reassociate. */
 			{
 			wifi_event_sta_disconnected_t* event = (wifi_event_sta_disconnected_t*) event_data;
-			sntp_stop();
+//			esp_netif_sntp_deinit();
 			ESP_LOGI(TAG, "WiFi disconnect event, resason: %d", event->reason);
 
 			if (!is_connected && WIFI_REASON_NO_AP_FOUND == event->reason) {
@@ -278,16 +275,12 @@ int wifi_cmd_ap_set(void)
  */
 esp_err_t wifiSetup(void)
 {
-	ESP_ERROR_CHECK(esp_netif_init());
 	wifi_event_group = xEventGroupCreate();
-	ESP_ERROR_CHECK(esp_event_loop_create_default());
 	sta_netif = esp_netif_create_default_wifi_sta();
-
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
 	/* Получение конфигурации wifi */
 	get_wifi_config();
-
 
 	ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
 	ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
