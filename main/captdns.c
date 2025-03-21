@@ -23,7 +23,6 @@ the internal webserver.
 #include "freertos/queue.h"
 #include "lwip/sockets.h"
 #include "lwip/err.h"
-#include "tcpip_adapter.h"
 #include "string.h"
 
 static int sockFd;
