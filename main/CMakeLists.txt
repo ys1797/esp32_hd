@@ -1,6 +1,5 @@
 # Edit following two lines to set component requirements (see docs)
 idf_component_register( SRCS 
-"captdns.c"
 "cgiupdate.c"
 "config.c"
 "ds.c" 
@@ -13,8 +12,8 @@ idf_component_register( SRCS
 "hd_wifi.c" 
 "OLEDDisplayFonts.c" 
 "sh1106.c"
-INCLUDE_DIRS "." "libesphttpd/include" "esp-request/include" "md5" "adafruit" 
+INCLUDE_DIRS "." "libesphttpd/include" "esp-request/include" "md5"
 #"ads1115"
-REQUIRES "adafruit" "libesphttpd" "esp-request" "md5" "console nvs_flash" "json" "openssl" "app_update" "esp_netif" "tcpip_adapter")
+REQUIRES "console" "nvs_flash" "json" "app_update" "esp_netif" "spiffs" "fatfs")
 # "ads1115")
                     
