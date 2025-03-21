@@ -28,12 +28,14 @@ License (MIT license):
 #include <stdlib.h>
 #include <dirent.h>
 #include <sys/unistd.h>
+#include <sys/stat.h>
 #include <ctype.h>
 #include "esp_platform.h"
 #include "esp_log.h"
 #include "cgiflash.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "esp_random.h"
 #include "esp_flash_partitions.h"
 #include "esp_partition.h"
 #include "math.h"
@@ -250,7 +252,7 @@ int parse_digest(const char *digest, struct http_digest *d, int request, int ped
 
 	/* Additional check for Digest response */
 	if (!strlen(d->username) || !strlen(d->uri) || !strlen(d->response)) return -1;
-	if (d->qop && (!strlen(d->cnonce) || !d->nc)) return -1;
+	if (d->qop && !strlen(d->cnonce)) return -1;
         return 0;
 }
 
@@ -1523,11 +1525,12 @@ error_first:
 
 /*an ota data write buffer ready to write to the flash*/
 //static char ota_write_data[BUFFSIZE + 1] = { 0 };
+/*
 int   cgiFwUpload(HttpdConnData *connData)
 {
 	FWState *state=(FWState *)connData->cgiData;
 	esp_err_t err;
-	/* update handle : set by esp_ota_begin(), must be freed via esp_ota_end() */
+	// update handle : set by esp_ota_begin(), must be freed via esp_ota_end()
 
 	const esp_partition_t *configured = esp_ota_get_boot_partition();
 	const esp_partition_t *running = esp_ota_get_running_partition();
@@ -1566,14 +1569,14 @@ int   cgiFwUpload(HttpdConnData *connData)
 		ESP_LOGI(TAG, "Starting OTA");
 		if (configured != running) {
 			ESP_LOGW(TAG, "Configured OTA boot partition at offset 0x%08x, but running from offset 0x%08x",
-				configured->address, running->address);
+				(unsigned int) configured->address, (unsigned int)running->address);
 			ESP_LOGW(TAG, "(This can happen if either the OTA boot data or preferred boot image become corrupted somehow.)");
 		}
 		ESP_LOGI(TAG, "Running partition type %d subtype %d (offset 0x%08x)",
-				running->type, running->subtype, running->address);
+				running->type, running->subtype, (unsigned int)running->address);
 
 		state->update_partition = esp_ota_get_next_update_partition(NULL);
-		ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x",
+		ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%lx",
 				state->update_partition->subtype, state->update_partition->address);
 		assert(state->update_partition != NULL);
 
@@ -1684,22 +1687,8 @@ if (1) {
 		return HTTPD_CGI_MORE;
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+*/
+  
 
 
 void WebsocketReceive(Websock *ws, char *data, int len, int flags)
@@ -1750,7 +1739,7 @@ HttpdBuiltInUrl builtInUrls[]={
 	{"/sms", httpSms, NULL},
 
 	{"/fu",cgiEspVfsUpload, "/s/"},
-	{"/fw",cgiFwUpload, NULL},
+//	{"/fw",cgiFwUpload, NULL},
 
 
 	{"/ws", cgiWebsocket, WebsocketReceive},
