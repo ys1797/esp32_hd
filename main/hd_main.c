@@ -20,15 +20,21 @@ License (MIT license):
   THE SOFTWARE.
 */
 
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/portmacro.h"
 #include "freertos/xtensa_api.h"
 #include "freertos/event_groups.h"
+#include "freertos/semphr.h"
 #include "freertos/timers.h"
 #include "esp32/rom/rtc.h"
 #include "esp_system.h"
+#include "esp_chip_info.h"
 #include "esp_idf_version.h"
 #include "esp_event.h"
 #include "esp_spiffs.h"
@@ -37,8 +43,9 @@ License (MIT license):
 #include "esp_console.h"
 #include "esp_vfs_dev.h"
 #include "nvs_flash.h"
+#include "esp_flash.h" // V5
 #include "driver/gpio.h"
-#include "driver/timer.h"
+#include "driver/gptimer.h"
 #include "driver/uart.h"
 #include "linenoise/linenoise.h"
 #include "argtable3/argtable3.h"
@@ -64,6 +71,8 @@ License (MIT license):
 #include "cgiupdate.h"
 #include "cgiwebsocket.h"
 #include "esp_request.h"
+#include "hal/gpio_ll.h"
+#include "rom/gpio.h"
 
 
 
@@ -71,12 +80,6 @@ License (MIT license):
 #define GPIO_OUTPUT_PIN_SEL  (1<<GPIO_BEEP)
 
 volatile int32_t Hpoint = HMAX;
-
-#define TIMER_DIVIDER   80		/*!< Hardware timer clock divider */
-#define TIMER_SCALE (TIMER_BASE_CLK / TIMER_DIVIDER) /*!< used to calculate counter value */
-#define TIMER_FINE_ADJ   (0*(TIMER_BASE_CLK / TIMER_DIVIDER)/1000000) /*!< used to compensate alarm value */ 
-#define TIMER_INTERVAL_SEC   (0.001)   /*!< test interval for timer */ 
-
 
 char *Hostname;		// Имя хоста
 char *httpUser;		// Имя пользователя для http
@@ -110,6 +113,7 @@ int16_t WaterOn =-1;			// Флаг включения контура охлаж�
 float TempWaterIn = -1;			// Температура воды на входе в контур
 float TempWaterOut = -1; 		// Температура воды на выходе из контура
 int16_t WaterFlow=-1;			// Значения датчика потока воды.
+int dispType = DISP_TYPE_SH1106;	// Тип дисплея
 
 // Динамические параметры
 double tempTube20Prev;		// Запомненое значение температуры в колонне
@@ -247,15 +251,27 @@ void pzem_task(void *arg)
 }
 
 
-const char *getMainModeStr(void)
+const char *getMainModeStr(char en)
 {
 	switch (MainMode) {
-        case MODE_IDLE:	return "Монитор";
-        case MODE_POWEERREG: return "Регулятор мощности";
-	case MODE_DISTIL: return "Дистилляция";
-	case MODE_RECTIFICATION: return "Ректификация";
-	case MODE_TESTKLP: return "Тестирование клапанов";
-	default: return "Неизвестно";
+        case MODE_IDLE:
+		if (en) return "Monitor";
+		else return "Монитор";
+        case MODE_POWEERREG:
+		if (en) return "Power regulator";
+		else return "Регулятор мощности";
+	case MODE_DISTIL:
+		if (en) return "Distillation";
+		else return "Дистилляция";
+	case MODE_RECTIFICATION:
+		if (en) return "Rectification";
+		else return "Ректификация";
+	case MODE_TESTKLP:
+		if (en) return "Valve testing";
+		else return "Тестирование клапанов";
+	default:
+		if (en) return "Unknown";
+		else return "Неизвестно";
 	}
 }
 
@@ -362,7 +378,7 @@ const char *getResetReasonStr(void)
 
 xQueueHandle timer_queue;
 
-static void timer_example_evt_task(void *arg)
+static void timer_evt_task(void *arg)
 {
 	uint32_t evt;
 	while(1) {
@@ -396,89 +412,77 @@ static void timer_example_evt_task(void *arg)
 }
 	
 
-
-
-void IRAM_ATTR timer0_group0_isr(void *para)
+static bool IRAM_ATTR timer_on_alarm_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_data)
 {
-	int timer_idx = (int) para;
-	uint32_t intr_status = TIMERG0.int_st_timers.val;
+	BaseType_t high_task_awoken = pdFALSE;
+	QueueHandle_t queue = (QueueHandle_t)user_data;
 
-	if (intr_status & BIT(timer_idx)) {
-
-	        /*Timer will reload counter value*/
-	        TIMERG0.hw_timer[timer_idx].update = 1;
-		/*We don't call a API here because they are not declared with IRAM_ATTR*/
-		TIMERG0.int_clr_timers.t1 = 1;
-		/* For a auto-reload timer, we still need to set alarm_en bit if we want to enable alarm again.*/
-		TIMERG0.hw_timer[timer_idx].config.alarm_en = 1;
-
-		if (beepActive) {
-			// Обработка пищалки
-			beeperTime--;
-			if (beeperTime <= 0) {
-				beeperTime = 0;
-				beepActive = false;
-				GPIO.out_w1tc = (1 << GPIO_BEEP);
-			}
-		}	
-
-		tic_counter++;
-		if (tic_counter >= 1000) {
-			tic_counter=0;
-			uptime_counter++;
-			if (rect_timer1>0) rect_timer1--; // Таймер для отсчета секунд 1
-			else rect_timer1=0;
-			if (timer_sec2>0) timer_sec2--;	// Таймер для отсчета секунд 2
-			else timer_sec2=0;
-			if (timer_sec3>0) timer_sec3--;	// Таймер для отсчета секунд 3
-			else timer_sec3=0;
-			CurFreq = gpio_counter;
-			gpio_counter=0;
-			xQueueSendFromISR(timer_queue, &intr_status, NULL);
+	if (beepActive) {
+		// Обработка пищалки
+		beeperTime--;
+		if (beeperTime <= 0) {
+			beeperTime = 0;
+			beepActive = false;
+			GPIO.out_w1tc = (1 << GPIO_BEEP);
 		}
+	}	
 
+	tic_counter++;
+	if (tic_counter >= 1000) {
+		tic_counter=0;
+		uptime_counter++;
+		if (rect_timer1>0) rect_timer1--; // Таймер для отсчета секунд 1
+		else rect_timer1=0;
+		if (timer_sec2>0) timer_sec2--;	// Таймер для отсчета секунд 2
+		else timer_sec2=0;
+		if (timer_sec3>0) timer_sec3--;	// Таймер для отсчета секунд 3
+		else timer_sec3=0;
+		CurFreq = gpio_counter;
+		gpio_counter=0;
+		xQueueSendFromISR(queue, &edata->count_value, &high_task_awoken);
 	}
+	return (high_task_awoken == pdTRUE);
 }
 
 /**
  * Настройка аппаратного таймера из group0
  */
-static void tg0_timer0_init()
+static void timer_init()
 {
-	int timer_group = TIMER_GROUP_0;
-	int timer_idx = TIMER_1;
-	timer_config_t config;
-
 	timer_queue = xQueueCreate(10, sizeof(uint32_t));
+	if (!timer_queue) {
+		ESP_LOGE(TAG, "Creating queue failed");
+		return;
+	}
+	ESP_LOGI(TAG, "Create timer handle");
+	gptimer_handle_t gptimer = NULL;
+	gptimer_config_t timer_config = {
+		.clk_src = GPTIMER_CLK_SRC_DEFAULT,
+		.direction = GPTIMER_COUNT_UP,
+		.resolution_hz = 1000000, // 1MHz, 1 tick=1us
+	};
+	ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &gptimer));
 
-	config.alarm_en = true;
-	config.auto_reload = 1;
-	config.counter_dir = TIMER_COUNT_UP;
-	config.divider = TIMER_DIVIDER;
-	config.intr_type = TIMER_INTR_LEVEL;
-	config.counter_en = TIMER_PAUSE;
+	gptimer_event_callbacks_t cbs = {
+		.on_alarm = timer_on_alarm_cb,
+	};
+	ESP_ERROR_CHECK(gptimer_register_event_callbacks(gptimer, &cbs, timer_queue));
 
-    /* Конфигурация таймера */
-    timer_init(timer_group, timer_idx, &config);
+	ESP_LOGI(TAG, "Enable timer");
+	ESP_ERROR_CHECK(gptimer_enable(gptimer));
 
-    /* Ставим таймер на паузу */
-    timer_pause(timer_group, timer_idx);
+	ESP_LOGI(TAG, "Start timer, stop it at alarm event");
+	gptimer_alarm_config_t alarm_config = {
+		.reload_count = 0,
+		.alarm_count = 1000, // period = 1 MS
+		.flags.auto_reload_on_alarm = true,
+	};
 
-    /* Загружаем значение таймера */
-    timer_set_counter_value(timer_group, timer_idx, 0);
+	ESP_ERROR_CHECK(gptimer_set_alarm_action(gptimer, &alarm_config));
+	/* Запускаем отсчет таймера */
+	ESP_ERROR_CHECK(gptimer_start(gptimer));
 
-    /*Set alarm value*/
-    timer_set_alarm_value(timer_group, timer_idx, (TIMER_INTERVAL_SEC * TIMER_SCALE) - TIMER_FINE_ADJ);
-    /* Разрешаем прерывания таймера */
-    timer_enable_intr(timer_group, timer_idx);
-
-    /* Устанавливаем обработчик прерывания */
-    timer_isr_register(timer_group, timer_idx, timer0_group0_isr, (void*) timer_idx, ESP_INTR_FLAG_IRAM, NULL);
-
-    /* Запускаем отсчет таймера */
-    timer_start(timer_group, timer_idx);
-
-    xTaskCreate(timer_example_evt_task, "timer_evt_task", 8192, NULL, 5, NULL);
+	xTaskCreate(timer_evt_task, "timer_evt_task", 8192, NULL, 5, NULL);
 }
 
 // ISR triggered by GPIO edge at the end of each Alternating Current half-cycle.
@@ -579,9 +583,9 @@ cJSON* getInformation(void)
 	cJSON_AddItemToObject(ja, "cmd", cJSON_CreateString("info"));
 	snprintf(data, sizeof(data)-1, "%02d:%02d", CurrentTm.tm_hour, CurrentTm.tm_min);
 	cJSON_AddItemToObject(ja, "time", cJSON_CreateString(data));
-	snprintf(data, sizeof(data)-1, "%02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
+	snprintf(data, sizeof(data)-1, "%02ld:%02ld:%02ld", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
 	cJSON_AddItemToObject(ja, "MainMode", cJSON_CreateNumber(MainMode));
-	cJSON_AddItemToObject(ja, "MainModeStr", cJSON_CreateString(getMainModeStr()));
+	cJSON_AddItemToObject(ja, "MainModeStr", cJSON_CreateString(getMainModeStr(0)));
 	cJSON_AddItemToObject(ja, "MainStatus", cJSON_CreateNumber(MainStatus));
 	cJSON_AddItemToObject(ja, "MainStatusStr", cJSON_CreateString(getMainStatusStr()));
 	cJSON_AddItemToObject(ja, "uptime", cJSON_CreateString(data));
@@ -646,7 +650,7 @@ cJSON* getInformation(void)
 		cJSON_AddItemToObject(ja, "rect_p_shim", cJSON_CreateNumber(ProcChimSR));
 		float timeStabKolonna = fabs(getFloatParam(DEFL_PARAMS, "timeStabKolonna"));
 		if (MainStatus == PROC_STAB) {
-			snprintf(data, sizeof(data)-1, "%02d/%02.0f sec", uptime_counter-secTempPrev, timeStabKolonna);
+			snprintf(data, sizeof(data)-1, "%02ld/%02.0f sec", uptime_counter-secTempPrev, timeStabKolonna);
 			cJSON_AddItemToObject(ja, "rect_time_stab", cJSON_CreateString(data));
 		}
 		if (MainStatus == PROC_T_WAIT) {
@@ -1047,7 +1051,7 @@ void Rectification(void)
 				// Если текущая температура колонны равна температуре,
 				// запомненной ранее в пределах погрешности в 0.2 градуса C
 #ifdef DEBUG
-				ESP_LOGI(TAG, "Stabillization %d of %02.0f sec.", uptime_counter-secTempPrev, fabs(timeStabKolonna));
+				ESP_LOGI(TAG, "Stabillization %ld of %02.0f sec.", uptime_counter-secTempPrev, fabs(timeStabKolonna));
 #endif
 
 				if (uptime_counter-secTempPrev<timeStabKolonna) {
@@ -1073,7 +1077,7 @@ void Rectification(void)
 		} else {
 			// Абсолютное значение времени
 #ifdef DEBUG
-			ESP_LOGI(TAG, "Stabillization %d of %0.0f.", uptime_counter-secTempPrev, fabs(timeStabKolonna));
+			ESP_LOGI(TAG, "Stabillization %ld of %0.0f.", uptime_counter-secTempPrev, fabs(timeStabKolonna));
 #endif
 			if (uptime_counter-secTempPrev < fabs(timeStabKolonna)) {
 				// Если с момента начала стабилизации прошло меньше
@@ -1273,7 +1277,7 @@ void Rectification(void)
 			setPower(0);		// Снятие мощности с тэна
 			closeAllKlp();		// Закрытие всех клапанов.
 			SecondsEnd = uptime_counter;
-			sprintf(b, "Rectification complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
+			sprintf(b, "Rectification complete, time: %02ld:%02ld:%02ld", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
 			sendSMS(b);
         		setNewMainStatus(PROC_END);
 			if (getIntParam(DEFL_PARAMS, "beepChangeState")) myBeep(true);
@@ -1347,7 +1351,7 @@ void Distillation(void)
 		// Окончание работы
 		setPower(0);		// Снятие мощности с тэна
 		closeAllKlp();		// Закрытие всех клапанов.
-		sprintf(b, "Distillation complete, time: %02d:%02d:%02d", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
+		sprintf(b, "Distillation complete, time: %02ld:%02ld:%02ld", uptime_counter/3600, (uptime_counter/60)%60, uptime_counter%60);
 		sendSMS(b);
 		break;
 	}
@@ -1513,16 +1517,18 @@ static int get_version(int argc, char **argv)
 {
 	esp_chip_info_t info;
 	esp_chip_info(&info);
+	uint32_t size_flash_chip;
+	esp_flash_get_size(NULL, &size_flash_chip);
 	printf("IDF Version:%s\r\n", esp_get_idf_version());
 	printf("Chip info:\r\n");
 	printf("\tmodel:%s\r\n", info.model == CHIP_ESP32 ? "ESP32" : "Unknow");
 	printf("\tcores:%d\r\n", info.cores);
-	printf("\tfeature:%s%s%s%s%d%s\r\n",
+	printf("\tfeature:%s%s%s%s%ld%s\r\n",
            info.features & CHIP_FEATURE_WIFI_BGN ? "/802.11bgn" : "",
            info.features & CHIP_FEATURE_BLE ? "/BLE" : "",
            info.features & CHIP_FEATURE_BT ? "/BT" : "",
            info.features & CHIP_FEATURE_EMB_FLASH ? "/Embedded-Flash:" : "/External-Flash:",
-           spi_flash_get_chip_size() / (1024 * 1024), " MB");
+           size_flash_chip / (1024 * 1024), " MB");
 	printf("\trevision number:%d\r\n", info.revision);
 	return 0;
 }
@@ -1569,11 +1575,13 @@ void console_task(void *arg)
 	setvbuf(stdin, NULL, _IONBF, 0);
 	setvbuf(stdout, NULL, _IONBF, 0);
 	// Настройка консоли
-	esp_vfs_dev_uart_set_rx_line_endings(ESP_LINE_ENDINGS_CR);
-	esp_vfs_dev_uart_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
+	
 	ESP_ERROR_CHECK(uart_driver_install(CONFIG_ESP_CONSOLE_UART_NUM, 256, 0, 0, NULL, 0));
 	// Tell VFS to use UART driver
 	esp_vfs_dev_uart_use_driver(CONFIG_ESP_CONSOLE_UART_NUM);
+	esp_vfs_dev_uart_port_set_rx_line_endings(CONFIG_ESP_CONSOLE_UART_NUM, ESP_LINE_ENDINGS_CR);
+	esp_vfs_dev_uart_port_set_tx_line_endings(CONFIG_ESP_CONSOLE_UART_NUM, ESP_LINE_ENDINGS_CRLF);
+
 	// Инициализация консоли
 	esp_console_config_t console_config = {
 		.max_cmdline_args = 8,
@@ -1634,7 +1642,7 @@ void app_main(void)
 		ESP_ERROR_CHECK(nvs_flash_erase());
 		ret = nvs_flash_init();
 	}
-        ESP_LOGI(TAG, "RAM left %d", esp_get_free_heap_size());
+        ESP_LOGI(TAG, "RAM left %lu", esp_get_free_heap_size());
 
 
 	ESP_ERROR_CHECK(ret = nvs_open("storage", NVS_READWRITE, &nvsHandle));
@@ -1667,11 +1675,6 @@ void app_main(void)
 	resetReason = rtc_get_reset_reason(0);
 	ESP_LOGI(TAG, "Reset reason: %s\n", getResetReasonStr());
 
-
-	TIMERG0.wdt_wprotect=TIMG_WDT_WKEY_VALUE;
-	TIMERG0.wdt_feed=1;
-	TIMERG0.wdt_wprotect=0;
-
 	/* Запуск консоли */
 	xTaskCreate(&console_task, "console_task", 8192, NULL, 1, NULL);
 
@@ -1691,6 +1694,7 @@ void app_main(void)
 
 	/* Поиск и настройка датиков темпервтуры и периодический опрос их */
 	xTaskCreate(&ds_task, "ds_task", 4096, NULL, 1, NULL);
+
 
 	/* Инициализация датчика давления bmp 180 */
 	initBMP085();
@@ -1722,7 +1726,7 @@ void app_main(void)
 	hd_httpd_init();	
 
 	/* Настройка таймера */
-	tg0_timer0_init();
+	timer_init();
 
 	/* Запуск отображения на дисплее */
 	hd_display_init();

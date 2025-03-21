@@ -65,6 +65,7 @@ extern char *httpUser;		// Имя пользователя для http
 extern char *httpPassword;	// Пароль для http
 extern int httpSecure;		// Спрашивать пароль
 extern int wsPeriod;		// Период обновления данных через websocket
+extern int dispType;
 
 extern main_mode MainMode;	// Текущий режим работы
 extern alarm_mode AlarmMode;	// Состояние аварии
@@ -126,7 +127,7 @@ float PZEM_current(void);
 float PZEM_power(void);
 float PZEM_energy(void);
 
-const char *getMainModeStr(void);
+const char *getMainModeStr(char en);
 const char *getAlarmModeStr(void);
 const char *getMainStatusStr(void);
 const char *getResetReasonStr(void); // Получение строки о причине перезагрузки
