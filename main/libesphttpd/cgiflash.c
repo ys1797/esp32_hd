@@ -27,7 +27,7 @@ Some flash handling cgi routines. Used for updating the ESPFS/OTA image.
 // Check that the header of the firmware blob looks like actual firmware...
 static int ICACHE_FLASH_ATTR checkBinHeader(void *buf) {
 	uint8_t *cd = (uint8_t *)buf;
-	printf("checkBinHeader: %x %x %x\n", cd[0], ((uint16_t *)buf)[3], ((uint32_t *)buf)[0x6]);
+	printf("checkBinHeader: %x %x %lx\n", cd[0], ((uint16_t *)buf)[3], ((uint32_t *)buf)[0x6]);
 	if (cd[0] != 0xE9) return 0;
 	if (((uint16_t *)buf)[3] != 0x4008) return 0;
 	uint32_t a=((uint32_t *)buf)[0x6];
