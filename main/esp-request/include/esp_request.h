@@ -2,7 +2,6 @@
 #define _ESP_REQUEST_H_
 #include "req_list.h"
 #include "uri_parser.h"
-#include "openssl/ssl.h"
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
 
@@ -69,8 +68,6 @@ typedef struct {
 typedef struct request_t {
     req_list_t *opt;
     req_list_t *header;
-    SSL_CTX *ctx;
-    SSL *ssl;
     req_buffer_t *buffer;
     void *context;
     int socket;

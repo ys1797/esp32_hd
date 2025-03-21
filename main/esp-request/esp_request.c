@@ -90,18 +90,6 @@ static int nossl_connect(request_t *req)
     req->socket = sock;
     return sock;
 }
-static int ssl_connect(request_t *req)
-{
-    nossl_connect(req);
-    REQ_CHECK(req->socket < 0, "socket failed", return -1);
-
-    //TODO: Check
-    req->ctx = SSL_CTX_new(TLSv1_1_client_method());
-    req->ssl = SSL_new(req->ctx);
-    SSL_set_fd(req->ssl, req->socket);
-    SSL_connect(req->ssl);
-    return 0;
-}
 static char *ws_esc(char *buffer, int len, int *outlen)
 {
     int header_len = 0;
@@ -171,18 +159,6 @@ static int ws_unesc(unsigned char *ws_buffer, unsigned char *buffer, int len)
     return payloadLen;
 }
 
-static int ssl_write(request_t *req, char *buffer, int len)
-{
-    if(req->valid_websocket) {
-        int ws_len = 0;
-        char *ws_buffer = ws_esc(buffer, len, &ws_len);
-        SSL_write(req->ssl, ws_buffer, ws_len);
-        free(ws_buffer);
-        return len;
-    }
-    return SSL_write(req->ssl, buffer, len);
-}
-
 static int nossl_write(request_t *req, char *buffer, int len)
 {
     if(req->valid_websocket) {
@@ -193,21 +169,6 @@ static int nossl_write(request_t *req, char *buffer, int len)
         return len;
     }
     return write(req->socket, buffer, len);
-}
-
-static int ssl_read(request_t *req, char *buffer, int len)
-{
-    int ret = -1;
-    if(req->valid_websocket) {
-        unsigned char *ws_buffer = (unsigned char*) malloc(len + MAX_WEBSOCKET_HEADER_SIZE);
-        ret = SSL_read(req->ssl, ws_buffer, len + MAX_WEBSOCKET_HEADER_SIZE);
-        ret = ws_unesc(ws_buffer, (unsigned char *)buffer, ret);
-        free(ws_buffer);
-    } else {
-        ret = SSL_read(req->ssl, buffer, len);
-    }
-
-    return ret;
 }
 
 static int nossl_read(request_t *req, char *buffer, int len)
@@ -222,14 +183,6 @@ static int nossl_read(request_t *req, char *buffer, int len)
         ret = read(req->socket, buffer, len);
     }
     return ret;
-}
-static int ssl_close(request_t *req)
-{
-    SSL_shutdown(req->ssl);
-    SSL_free(req->ssl);
-    close(req->socket);
-    SSL_CTX_free(req->ctx);
-    return 0;
 }
 
 static int nossl_close(request_t *req)
@@ -398,18 +351,10 @@ void req_setopt(request_t *req, REQ_OPTS opt, void* data)
             break;
         case REQ_SET_SECURITY:
             req_list_set_key(req->opt, "secure", data);
-            if(req_list_check_key(req->opt, "secure", "true")) {
-                ESP_LOGD(REQ_TAG, "Secure");
-                req->_read = ssl_read;
-                req->_write = ssl_write;
-                req->_connect = ssl_connect;
-                req->_close = ssl_close;
-            } else {
                 req->_read = nossl_read;
                 req->_write = nossl_write;
                 req->_connect = nossl_connect;
                 req->_close = nossl_close;
-            }
 
             break;
         case REQ_SET_POSTFIELDS:
