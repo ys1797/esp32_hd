@@ -60,7 +60,9 @@ License (MIT license):
 #include <unistd.h>
 #include <dirent.h>
 #include <cJSON.h>
-#include "lwip/apps/sntp.h"
+#include "esp_netif_sntp.h"
+#include "lwip/ip_addr.h"
+#include "esp_sntp.h"
 #include "ds.h"
 #include "hd_bmp180.h"
 #include "esp_platform.h"
@@ -1631,6 +1633,12 @@ void console_task(void *arg)
 
 }
 
+void time_sync_notification_cb(struct timeval *tv)
+{
+	ESP_LOGI(TAG, "Notification of a time synchronization event");
+}
+
+
 // Основная точка входа в программу
 void app_main(void)
 {
@@ -1642,6 +1650,8 @@ void app_main(void)
 		ESP_ERROR_CHECK(nvs_flash_erase());
 		ret = nvs_flash_init();
 	}
+	ESP_ERROR_CHECK(esp_netif_init());
+	ESP_ERROR_CHECK( esp_event_loop_create_default() );
         ESP_LOGI(TAG, "RAM left %lu", esp_get_free_heap_size());
 
 
@@ -1685,6 +1695,19 @@ void app_main(void)
 	httpPassword = getStringParam(NET_PARAMS, "pass");
 	httpSecure = getIntParam(NET_PARAMS, "secure");
 	wsPeriod = getIntParam(NET_PARAMS, "wsPeriod");
+
+	/* Настройка sntp */
+	ESP_LOGI(TAG, "Initializing SNTP");
+	setenv("TZ", "MSK-3", 1);
+	esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+	config.start = false;                       // start SNTP service explicitly (after connecting)
+	config.renew_servers_after_new_IP = true;   // let esp-netif update configured SNTP server(s) after receiving DHCP lease
+//	config.index_of_first_server = 1;           // updates from server num 1, leaving server 0 (from DHCP) intact
+	config.ip_event_to_renew = IP_EVENT_STA_GOT_IP;
+	config.smooth_sync = true;
+	config.sync_cb = time_sync_notification_cb; // only if we need the notification function
+	esp_netif_sntp_init(&config);
+	esp_netif_sntp_start();
 
 	/* Настройка wifi */
 	wifiSetup();
