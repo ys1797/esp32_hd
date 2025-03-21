@@ -24,6 +24,10 @@ License (MIT license):
 #ifndef DS_ONEWIRE_H_
 #define DS_ONEWIRE_H_
 
+#include "ds18b20.h"
+#include "onewire_bus.h"
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -88,17 +92,19 @@ typedef enum DsType {
 
 
 typedef struct {
-	uint8_t	id;
-	bool is_connected;	// Флаг наличия датчика
-	bool parasite;
-	DeviceAddress deviceAddress;	// ROM адрес датчика
-	char	adressStr[20];	// Строка для ROM адреса датчика в читабельном виде
+	uint8_t			id;
+	bool			is_connected;	// Флаг наличия датчика
+	bool			is_ds2482;	// Датчик подключен через ds2482
+	bool			parasite;
+	DeviceAddress		deviceAddress;	// ROM адрес датчика (ds2482)
+	ds18b20_device_handle_t	handle;
+	char			address[20];	// Строка для ROM адреса датчика в читабельном виде
 	uint8_t bitResolution;	// Разрешение датчика, используется для вычисления задержки
 	bool waitForConversion;	// Флаг ожидания окончания преобразования температуры
 	DsType	type;		// Назначение датчика
-	double corr;		// Поправка к темперетуре	
-	double Ce;		// Последнее считанное значение температуры
-	double talert;		// Максимальная температура в режиме аварийного датчика
+	float corr;		// Поправка к темперетуре	
+	float Ce;		// Последнее считанное значение температуры
+	float talert;		// Максимальная температура в режиме аварийного датчика
 	uint8_t  errcount;	// количество сбоев после последнего измерения
 	char  *description;
 } DS18;
