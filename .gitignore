@@ -35,3 +35,4 @@ sdkconfig.old
 *.app
 /.cproject
 /.project
+/.metadata/
