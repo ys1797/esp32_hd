@@ -1,6 +1,6 @@
 /*
 esp32_hd configuration
-Copyright (c) 2018 ys1797 (yuri@rus.net)
+Copyright (c) 2018-2025 ys1797 (yuri@rus.net)
 
 License (MIT license):
   Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,65 +30,65 @@ License (MIT license):
 
 #define DEBUG				// debug mode
 
-#define MAX_OBJ_NAME	32
-#define MAX_KLP		4		// Максимальное число клапанов = 4
+#define MAX_OBJ_NAME		(32)
+#define MAX_KLP			(4)	// Максимальное число клапанов = 4
 
-#define CONFIG_REALM "ESP32"
-#define DEFAULT_HOST "hd_esp32"
-#define DEFAULT_USERNAME "yuri"
-#define DEFAULT_PASSWORD "12345"
+#define CONFIG_REALM		"ESP32"
+#define DEFAULT_HOST		"hd_esp32"
+#define DEFAULT_USERNAME	"yuri"
+#define DEFAULT_PASSWORD	"12345"
 
-#define FIRMWARE_UPDATE_URL "http://hd.rus.net/"
-#define ESP32_VERSION "0.7.4"
+#define FIRMWARE_UPDATE_URL	"http://hd.rus.net/"
+#define ESP32_VERSION		"0.8.1"
 
-#define WiFiStateConnected      0
-#define WiFiStateWaitToConnect  1
-#define WiFiStateConnecting     2
-#define WiFiStateDisconnected   3
+#define WiFiStateConnected      (0)
+#define WiFiStateWaitToConnect  (1)
+#define WiFiStateConnecting     (2)
+#define WiFiStateDisconnected   (3)
 
-#define TIME_WAIT_TO_CONNECT 20000
-#define TIME_RECONNECT_TIMEOUT 20000
+#define TIME_WAIT_TO_CONNECT 	(20000)
+#define TIME_RECONNECT_TIMEOUT	(20000)
 
-#define NET_CONFIGURATION  "/s/net.cfg"
-#define WIFI_CONFIGURATION  "/s/wifi.cfg"
-#define RECT_CONFIGURATION  "/s/rectparam.json"
-#define SENS_CONFIGURATION  "/s/sensors.json"
-#define HISTORY_PATH "/s/history.txt"
-#define KEY_CONNECTION_INFO "connectionInfo"    // Key used in NVS for connection info
-#define WIFI_NAMESPACE  "hdwifi"		// Namespace in NVS for wifi
-#define SSID_SIZE           (32)                // Maximum SSID size
-#define PASSWORD_SIZE       (64)                // Maximum password size
+#define NET_CONFIGURATION	"/s/net.cfg"
+#define WIFI_CONFIGURATION	"/s/wifi.cfg"
+#define RECT_CONFIGURATION	"/s/rectparam.json"
+#define SENS_CONFIGURATION	"/s/sensors.json"
+#define HISTORY_PATH		"/s/history.txt"
+#define KEY_CONNECTION_INFO	"connectionInfo"	// Key used in NVS for connection info
+#define WIFI_NAMESPACE		"hdwifi"		// Namespace in NVS for wifi
+#define SSID_SIZE		(32)                	// Maximum SSID size
+#define PASSWORD_SIZE		(64)                	// Maximum password size
 
-#define DISP_TYPE_SH1106	0
-#define DISP_TYPE_ILI9341	1
-#define DISP_TYPE_ILI9488	2
-#define DISP_TYPE_ST7789V	3
-#define DISP_TYPE_ST7735	4
-#define DISP_TYPE_ST7735R	5
-#define DISP_TYPE_ST7735B	6
-#define DISP_TYPE_MAX		7
+#define DISP_TYPE_SH1106	(0)
+#define DISP_TYPE_ILI9341	(1)
+#define DISP_TYPE_ILI9488	(2)
+#define DISP_TYPE_ST7789V	(3)
+#define DISP_TYPE_ST7735	(4)
+#define DISP_TYPE_ST7735R	(5)
+#define DISP_TYPE_ST7735B	(6)
+#define DISP_TYPE_MAX		(7)
 
 
 /* GPIO */
-#define I2C_MASTER_SCL_IO    	4    /*!< gpio number for I2C master clock */
-#define I2C_MASTER_SDA_IO    	5    /*!< gpio number for I2C master data  */
+#define I2C_MASTER_SCL_IO    	(4)			// gpio number for I2C master cloc
+#define I2C_MASTER_SDA_IO    	(5)			//  gpio number for I2C master data
 
-#define PIN_DS18B20 		16
+#define PIN_DS18B20 		(16)			// Pin used by onwire ds18b20 in gpio mode
 
-#define GPIO_DETECT_ZERO	15 
-#define GPIO_TRIAC		2 
-#define GPIO_BEEP		17 
-#define GPIO_ALARM		10	// External alarm gpio#
+#define GPIO_DETECT_ZERO	(15) 			// Zero cross voltage detect pin
+#define GPIO_TRIAC		(2)			// triak controll pin
+#define GPIO_BEEP		(17) 			// Beeper gpio number
+#define GPIO_ALARM		(10)			// External alarm gpio#
 
-#define PZEM_TXD  (14)
-#define PZEM_RXD  (13)
+#define PZEM_TXD		(14)			// Pzem tx serial data pin
+#define PZEM_RXD		(13)			// Pzem rx serial data pin
 
-#define SPI_PIN_MOSI 23
-#define SPI_PIN_MISO 19
-#define SPI_PIN_CLK  18
-#define SPI_PIN_DC   21
-#define SPI_PIN_CS   22
-#define SPI_PIN_RST  25
+#define SPI_PIN_MOSI		(23)
+#define SPI_PIN_MISO		(19)
+#define SPI_PIN_CLK		(18)
+#define SPI_PIN_DC		(21)
+#define SPI_PIN_CS		(22)
+#define SPI_PIN_RST		(25)
 
 // Тип переменной
 enum variable_type {
@@ -106,19 +106,17 @@ typedef struct  {
         int max;
 	char *default_val;
 	char *val;
-//	int intval;
-//	float floatval;
 } vaiable_list;
 
-extern vaiable_list NET_PARAMS[];	// Сетевые параметры
-extern vaiable_list DEFL_PARAMS[];	// Пераметры устройства
+extern	vaiable_list NET_PARAMS[];	// Сетевые параметры
+extern	vaiable_list DEFL_PARAMS[];	// Пераметры устройства
 
-int param_default(vaiable_list list[], const char *finename);	// Сброс параметров в значение по умолчанию
-int param_load(vaiable_list list[], const char *finename);	/* Загрузка и установка параметров работы */
-int param_save(vaiable_list list[], const char *finename);	/* Сохранение параметров работы */
-int checkParam(vaiable_list list[], char *name);	/* Проверка существования параметра */
-int setParam(vaiable_list list[], char *name, char *value); /* Установка  переменной */
-char *getStringParam(vaiable_list list[], char *name);	/* Получение текстовой переменной */
-int  getIntParam(vaiable_list list[], char *name);	/* Получение переменной типа int */
-float getFloatParam(vaiable_list list[], char *name);	/* Получение переменной типа float*/
+int 	param_default(vaiable_list list[], const char *fname);	// Сброс параметров в значение по умолчанию
+int 	param_load(vaiable_list list[], const char *finename);	// Загрузка и установка параметров работы
+int 	param_save(vaiable_list list[], const char *finename);	// Сохранение параметров работы
+int 	checkParam(vaiable_list list[], char *name);		// Проверка существования параметра
+int 	setParam(vaiable_list list[], char *name, char *value); // Установка  переменной
+char 	*getStringParam(vaiable_list list[], char *name);	// Получение текстовой переменной
+int  	getIntParam(vaiable_list list[], char *name);		// Получение переменной типа int
+float	getFloatParam(vaiable_list list[], char *name);		// Получение переменной типа float
 
